@@ -4,8 +4,8 @@ from pprint import pprint  # For nicely formatted printing
 from GraphSchema import NodeSchema, PropertySchema, RelationshipSchema, QueryPattern, GraphSchema
 
 
-class TestGraphSchemaModelDump(unittest.TestCase):
-    def test_model_dump_graph_schema(self):
+class TestGraphSchemaQueryModelDump(unittest.TestCase):
+    def test_query_model_dump_graph_schema(self):
         # Create example nodes
         node_1 = NodeSchema(
             description="A person node",
@@ -80,10 +80,10 @@ class TestGraphSchemaModelDump(unittest.TestCase):
 
         # Print the full serialized graph to the console
         print("\nFull Serialized GraphSchema:")
-        pprint(graph.model_dump())  # Print the entire graph to visually inspect the output
+        pprint(graph.query_model_dump())  # Print the entire graph to visually inspect the output
 
-        # Get the serialized output using model_dump
-        serialized_graph = graph.model_dump()
+        # Get the serialized output using query_model_dump
+        serialized_graph = graph.query_model_dump()
 
         # Assert nodes are correctly serialized
         self.assertEqual(len(serialized_graph["nodes"]), 2)
@@ -95,7 +95,7 @@ class TestGraphSchemaModelDump(unittest.TestCase):
         serialized_relationship = serialized_graph["relationships"][0]
         self.assertEqual(serialized_relationship["type"], "KNOWS")
 
-        # Expected relationship patterns (from overridden model_dump in RelationshipSchema)
+        # Expected relationship patterns (from query_model_dump in RelationshipSchema)
         expected_query_patterns = [
             "(:Person)-[:KNOWS]->(:Person)",
             "(:Person)-[:KNOWS]->(:Manager)"

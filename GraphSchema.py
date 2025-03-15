@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, Union, List
+import yaml  # Import PyYAML for YAML serialization
+
 
 
 class Element(BaseModel):
@@ -49,7 +51,7 @@ class RelationshipSchema(Element):
         default_factory=list, description="Properties for the relationship. must include at least the key property"
     )
 
-    def model_dump(self, **kwargs) -> dict:
+    def query_model_dump(self, **kwargs) -> dict:
         """
         Custom dict method to serialize query patterns in the format:
         (:startNodeLabel)-[:TYPE]->(:endNodeLabel)
@@ -71,15 +73,24 @@ class GraphSchema(Element):
     nodes: List[NodeSchema] = Field(default_factory=list, description="List of nodes in the graph")
     relationships: List[RelationshipSchema] = Field(default_factory=list, description="List of relationships in the graph")
 
-    def model_dump(self, **kwargs) -> dict:
+    def query_model_dump(self, **kwargs) -> dict:
         """
         Custom model_dump for GraphSchema that ensures nested elements are
-        serialized using their own model_dump logic.
+        serialized using their own query_model_dump logic.
         """
         base_dict = super().model_dump(**kwargs)
 
         # Serialize nodes and relationships explicitly to invoke custom logic
         base_dict["nodes"] = [node.model_dump(**kwargs) for node in self.nodes]
-        base_dict["relationships"] = [relationship.model_dump(**kwargs) for relationship in self.relationships]
+        base_dict["relationships"] = [relationship.query_model_dump(**kwargs) for relationship in self.relationships]
 
         return base_dict
+
+    def query_model_to_yaml(self, **kwargs) -> str:
+        """
+        Serialize the GraphSchema into a YAML string representation.
+        Leverages `model_dump` to generate the dictionary and converts it to YAML.
+        """
+        # Use PyYAML's dump() to convert the dictionary into YAML
+        return yaml.dump(self.query_model_dump(**kwargs), sort_keys=False)  # sort_keys=False keeps the field order consistent
+
