@@ -77,7 +77,7 @@ class TestGraphSchemaExportAndLoad(unittest.TestCase):
         )
 
         # Assign to self.schema_manager.graph_schema
-        self.schema_manager.graph_schema = self.graph_schema
+        self.schema_manager.schema = self.graph_schema
 
     def test_export_schema(self):
         """
@@ -110,7 +110,7 @@ class TestGraphSchemaExportAndLoad(unittest.TestCase):
             self.schema_manager.load(tmp_file.name)
 
             # Verify that the loaded schema matches the original
-            loaded_schema = self.schema_manager.graph_schema
+            loaded_schema = self.schema_manager.schema
             self.assertEqual(loaded_schema.description, self.graph_schema.description)
             self.assertEqual(len(loaded_schema.nodes), len(self.graph_schema.nodes))
             self.assertEqual(len(loaded_schema.relationships), len(self.graph_schema.relationships))
@@ -119,7 +119,7 @@ class TestGraphSchemaExportAndLoad(unittest.TestCase):
         """
         Test exporting when no schema is defined.
         """
-        self.schema_manager.graph_schema = None
+        self.schema_manager.schema = None
 
         with self.assertRaises(ValueError) as context:
             self.schema_manager.export("dummy_path.json")

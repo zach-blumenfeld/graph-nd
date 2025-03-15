@@ -8,7 +8,7 @@ class Element(BaseModel):
     """
     Base class for graph elements
     """
-    description: str = Field(description="description of this element including instructions for use in loading, query, and search")
+    description: Optional[str] = Field(default='', description="description of this element including instructions for use in loading, query, and search")
 
 
 class PropertySchema(Element):
@@ -92,4 +92,40 @@ class GraphSchema(Element):
         """
         # Use PyYAML's dump() to convert the dictionary into YAML
         return yaml.dump(self.query_model_dump(**kwargs), sort_keys=False)  # sort_keys=False keeps the field order consistent
+
+    def get_node_schema_by_label(self, label: str) -> NodeSchema:
+        """
+        Retrieve a specific node schema by its label.
+        :param label: The label of the node schema to retrieve.
+        :return: The NodeSchema with the given label.
+        :raises ValueError: If no NodeSchema with the given label is found.
+        """
+        for node in self.nodes:
+            if node.label == label:
+                return node
+        raise ValueError(f"No NodeSchema found with the label '{label}'")
+
+    def get_relationship_schema(self, rel_type: str, start_node_label: str, end_node_label: str) -> RelationshipSchema:
+        """
+        Retrieve a specific relationship schema by its type and start and end node labels.
+        :param rel_type: The type of the relationship to retrieve.
+        :param start_node_label: The label of the start node.
+        :param end_node_label: The label of the end node.
+        :return: The RelationshipSchema that matches the criteria.
+        :raises ValueError: If no matching RelationshipSchema is found.
+        """
+        # Loop through all relationships in the graph schema to check for matches
+        for relationship in self.relationships:
+            # Check if the relationship type matches
+            if relationship.type == rel_type:
+                # Check if any of the query patterns match the given start and end node labels
+                for pattern in relationship.queryPatterns:
+                    if pattern.startNode == start_node_label and pattern.endNode == end_node_label:
+                        return relationship
+
+        # If no match is found, raise an error
+        raise ValueError(
+            f"No RelationshipSchema found with type '{rel_type}' and query pattern "
+            f"'{start_node_label}-[{rel_type}]->{end_node_label}'"
+        )
 
