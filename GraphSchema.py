@@ -34,7 +34,7 @@ class QueryPattern(Element):
    A query pattern for a relationship describing a start and end node i.e (startNode)-[r]->(endNode)
     """
     startNode:str = Field(description="Starting node label of the relationship query pattern")
-    endNode: str = Field(description="Ending node of the relationship")
+    endNode: str = Field(description="Ending node label of the relationship query pattern")
 
 
 class RelationshipSchema(Element):
@@ -43,8 +43,7 @@ class RelationshipSchema(Element):
     """
     id: Optional[PropertySchema] = Field(None, description="optional property to use as the unique non-null identifier for the relationship.  "
                                       "only necessary for parallel relationship (more than one instance of a "
-                                      "relationships of the same type between the same start and end nodes.  "
-                                      "If used property must be present in properties. ")
+                                      "relationships of the same type between the same start and end nodes.  ")
     type: str = Field(description="The relationship type.  Should be in all caps to conform to style standards.")
     queryPatterns: List[QueryPattern] = Field(default_factory=list, description="Query patterns for the relationship")
     properties: List[PropertySchema] = Field(
