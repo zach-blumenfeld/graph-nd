@@ -8,7 +8,7 @@ from GraphSchema import GraphSchema
 from graphrag import GraphRAG  # Replace with actual import path
 
 
-class TestGraphRAGIntegration(unittest.TestCase):
+class TestGraphRAGSchemaInference(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """

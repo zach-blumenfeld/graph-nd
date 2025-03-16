@@ -8,8 +8,7 @@ class Element(BaseModel):
     """
     Base class for graph elements
     """
-    description: Optional[str] = Field(default='', description="description of this element including instructions for use in loading, query, and search")
-
+    description: Optional[str] = Field('',description="description of this element including instructions for use in loading, query, and search")
 
 class PropertySchema(Element):
     """
@@ -17,6 +16,14 @@ class PropertySchema(Element):
     """
     name: str= Field(description="name of the property")
     type: str = Field(description="data type of the property, STRING, INTEGER, etc.")
+
+class SearchFieldSchema(Element):
+    """
+    A field used for semantic search such as for vector similarity or fulltext search
+    """
+    name: str= Field(description="name of the field")
+    type: str = Field(description="type of field: TEXT_EMBEDDING, FULL_TEXT")
+    calculatedFrom: str = Field(description="name of the source property for this field")
 
 
 class NodeSchema(Element):
@@ -28,6 +35,7 @@ class NodeSchema(Element):
     properties: List[PropertySchema] = Field(
         default_factory=list, description="Other properties for the node. must include at least the key property"
     )
+    search_fields: List[SearchFieldSchema] = Field(default_factory=list, description="fields used for semantic search, sourced from properties.")
 
 class QueryPattern(Element):
     """

@@ -41,7 +41,7 @@ class GraphRAG:
         def __init__(self, db_client, llm):
             self.schema = None
             self.db_client = db_client
-            self.llm = llm.with_structured_output(GraphSchema) if llm else None
+            self.llm = llm.with_structured_output(GraphSchema, method="function_calling") if llm else None
 
         def set_llm(self, llm):
             """
@@ -50,7 +50,7 @@ class GraphRAG:
             Args:
                 llm: The new LLM instance to set.
             """
-            self.llm = llm.with_structured_output(GraphSchema) if llm else None
+            self.llm = llm.with_structured_output(GraphSchema, method="function_calling") if llm else None
 
         def _validate_llm(self):
             """

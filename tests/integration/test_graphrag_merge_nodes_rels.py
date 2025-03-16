@@ -8,7 +8,7 @@ from graphrag import GraphRAG
 from GraphSchema import NodeSchema, PropertySchema, RelationshipSchema, QueryPattern, GraphSchema
 
 
-class TestGraphRAGIntegration(unittest.TestCase):
+class TestGraphRAGMergeNodeRels(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
