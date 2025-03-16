@@ -20,7 +20,6 @@ class TestGraphRAGSchemaInference(unittest.TestCase):
         if not api_key:
             raise EnvironmentError("Please set the OPENAI_API_KEY environment variable for integration tests.")
 
-        # Assuming you have a class to initialize the real LLM
         cls.real_llm = ChatOpenAI(model="gpt-4o", temperature=0.0)
 
         cls.mock_db_client = None  # Replace with a real or mock database client

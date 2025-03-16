@@ -22,7 +22,7 @@ class SearchFieldSchema(Element):
     A field used for semantic search such as for vector similarity or fulltext search
     """
     name: str= Field(description="name of the field")
-    type: str = Field(description="type of field: TEXT_EMBEDDING, FULL_TEXT")
+    type: str = Field(description="type of field: TEXT_EMBEDDING, FULLTEXT")
     calculatedFrom: str = Field(description="name of the source property for this field")
 
 
@@ -35,7 +35,7 @@ class NodeSchema(Element):
     properties: List[PropertySchema] = Field(
         default_factory=list, description="Other properties for the node. must include at least the key property"
     )
-    search_fields: List[SearchFieldSchema] = Field(default_factory=list, description="fields used for semantic search, sourced from properties.")
+    searchFields: List[SearchFieldSchema] = Field(default_factory=list, description="fields used for semantic search, sourced from properties.")
 
 class QueryPattern(Element):
     """

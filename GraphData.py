@@ -106,7 +106,7 @@ class NodeData(BaseModel):
         Create fulltext index for the node label and property if it desn't exist in the database.
         """
         db_client.execute_query(
-            f'CREATE FULLTEXT INDEX fulltext_{self.node_schema.label.lower()}_{prop_name} FOR (n:{self.node_schema.label}) ON EACH [n.{prop_name}]',
+            f'CREATE FULLTEXT INDEX fulltext_{self.node_schema.label.lower()}_{prop_name} IF NOT EXISTS FOR (n:{self.node_schema.label}) ON EACH [n.{prop_name}]',
             routing_=RoutingControl.WRITE
         )
         # wait for index to come online
@@ -118,9 +118,9 @@ class NodeData(BaseModel):
         """
         Create fulltext indexes for the node label and properties if they don't exist in the database.
         """
-        for field in self.node_schema.fields:
-            if field.type == 'FULL_TEXT':
-                self.create_fulltext_index_if_not_exists(db_client, field.calculationOf)
+        for field in self.node_schema.searchFields if self.node_schema.searchFields is not None else []:
+            if field.type == 'FULLTEXT':
+                self.create_fulltext_index_if_not_exists(db_client, field.calculatedFrom)
 
     def create_vector_index_if_not_exists(self, db_client, prop_name, dim):
         """
@@ -143,9 +143,9 @@ class NodeData(BaseModel):
         """
         Create vector indexes for the node label and properties if they don't exist in the database.
         """
-        for field in self.node_schema.fields:
+        for field in self.node_schema.searchFields if self.node_schema.searchFields is not None else []:
             if field.type == 'TEXT_EMBEDDING':
-                self.create_vector_index_if_not_exists(db_client, field.calculationOf, dim)
+                self.create_vector_index_if_not_exists(db_client, field.calculatedFrom, dim)
 
     def make_node_merge_query(self):
         template = f'''UNWIND $recs AS rec\nMERGE(n:{self.node_schema.label} {{{self.node_schema.id.name}: rec.{self.node_schema.id.name}}})'''
@@ -160,13 +160,17 @@ class NodeData(BaseModel):
         Merge node embedding data into the database.
         """
         #get fields to embed
-        embed_maps = [{'emb':field.name, 'prop':field.calculationOf} for field in self.node_schema.fields if field.type == 'TEXT_EMBEDDING']
+        embed_maps = [{'emb': field.name, 'prop': field.calculatedFrom}
+                      for field in (self.node_schema.searchFields or [])
+                      if field.type == 'TEXT_EMBEDDING']
         #loop through
         if len(embed_maps) > 0:
             df = pd.DataFrame(self.records)
             for embed_map in tqdm(embed_maps, desc="Embedding Node Properties"):
-
                 if embed_map['prop'] in df.columns:
+                    if embedding_model is None:
+                        raise ValueError(
+                            "Embedding model is required to process text embeddings, but 'embedding_model' is None.")
                     # generate embeddings
                     emb_df, dim = batch_embed(df[[self.node_schema.id.name, embed_map['prop']]], field_to_embed=embed_map['prop'],
                                          embedding_field_name=embed_map['emb'],
@@ -176,8 +180,8 @@ class NodeData(BaseModel):
                     query = f'''
                     UNWIND $recs AS rec
                     MATCH(n:{self.node_schema.label} {{{self.node_schema.id.name}: rec.{self.node_schema.id.name}}})
-                    CALL db.create.setNodeVectorProperty(n, "{embed_map['emb']}", rec.{embed_map['emb']}) YIELD value
-                    RETURN count(value) AS nodeVectorLoadedCount
+                    CALL db.create.setNodeVectorProperty(n, "{embed_map['emb']}", rec.{embed_map['emb']})
+                    RETURN count(n) AS nodeVectorLoadedCount
                     '''
                     for recs in chunks(emb_df.to_dict('records'), load_chunk_size):
                         db_client.execute_query(query, routing_=RoutingControl.WRITE, recs=recs)
@@ -204,7 +208,7 @@ class NodeData(BaseModel):
         self.merge_text_emb(db_client, embedding_model, emb_chunk_size=emb_gen_chunk_size, load_chunk_size=emb_load_chunk_size)
 
         #full text indexes
-        self.create_full_text_if_not_exists(db_client)
+        self.create_fulltext_indexes_if_not_exists(db_client)
 
 
 
@@ -249,10 +253,10 @@ class GraphData(BaseModel):
     nodeDatas: List[NodeData] = Field(default_factory=list, description="list of NodeData records")
     relationshipDatas: List[RelationshipData] = Field(default_factory=list, description="list of RelationshipData records")
 
-    def merge(self, db_client):
+    def merge(self, db_client, embedding_model=None):
         for nodeData in self.nodeDatas:
             print(f"Merging {nodeData.node_schema.label} nodes")
-            nodeData.merge(db_client)
+            nodeData.merge(db_client, embedding_model=embedding_model)
 
         for relData in self.relationshipDatas:
             print(f"Merging ({relData.start_node_schema.label})-[{relData.rel_schema.type}]->({relData.end_node_schema.label}) relationships")
