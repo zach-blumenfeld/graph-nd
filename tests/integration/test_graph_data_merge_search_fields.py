@@ -9,7 +9,7 @@ from GraphData import NodeData, RelationshipData, GraphData
 from GraphSchema import NodeSchema, PropertySchema, RelationshipSchema, QueryPattern, SearchFieldSchema
 
 
-class TestGraphDataWithTextFields(unittest.TestCase):
+class TestGraphDataMergeWithSearchFields(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
@@ -50,12 +50,11 @@ class TestGraphDataWithTextFields(unittest.TestCase):
         Clean up the database by deleting all nodes and relationships after tests, then close connections.
         """
         with cls.db_client.session() as session:
-            print("skipping tear down")
             # Run the cleanup Cypher query to delete everything
-            #session.run("MATCH (n) DETACH DELETE n")
+            session.run("MATCH (n) DETACH DELETE n")
             # Drop the indexes
-            #session.run("DROP INDEX bio_text_embeddingIndex IF EXISTS")
-            #session.run("DROP INDEX fulltext_movie_title IF EXISTS")
+            session.run("DROP INDEX vector_person_bio_text_embedding IF EXISTS")
+            session.run("DROP INDEX fulltext_movie_title IF EXISTS")
 
         cls.db_client.close()
 
