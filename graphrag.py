@@ -1,9 +1,12 @@
 import json
+from pprint import pprint
 from typing import Dict, List
 
 from GraphData import NodeData, RelationshipData
 from GraphSchema import GraphSchema, NodeSchema
-from prompt_templates import SCHEMA_FROM_DESC_TEMPLATE, SCHEMA_FROM_SAMPLE_TEMPLATE, SCHEMA_FROM_DICT_TEMPLATE
+from table_mapping import TableTypeEnum, TableType
+from prompt_templates import SCHEMA_FROM_DESC_TEMPLATE, SCHEMA_FROM_SAMPLE_TEMPLATE, SCHEMA_FROM_DICT_TEMPLATE, \
+    TABLE_TYPE_TEMPLATE
 
 
 class GraphRAG:
@@ -21,7 +24,7 @@ class GraphRAG:
 
         # Initialize Schema and Data components
         self.schema = self.Schema(self.db_client, llm)
-        self.data = self.Data(self, self.db_client)
+        self.data = self.Data(self, self.db_client, llm)
 
     def set_llm(self, llm):
         """
@@ -32,6 +35,7 @@ class GraphRAG:
         """
         self.llm = llm
         self.schema.set_llm(llm)
+        self.data.set_llms(llm)
 
     class Schema:
         """
@@ -157,7 +161,7 @@ class GraphRAG:
         Data management for the knowledge graph.
         """
 
-        def __init__(self, graph_rag, db_client):
+        def __init__(self, graph_rag, db_client, llm):
             """
             Initializes the Data class.
 
@@ -165,8 +169,16 @@ class GraphRAG:
                 graph_rag: A reference to the outer `GraphRAG` instance.
                 db_client: The database client for managing the knowledge graph.
             """
-            self.graph_rag = graph_rag  # Reference to the outer GraphRAG instance
+            self.graphrag = graph_rag  # Reference to the outer GraphRAG instance
             self.db_client = db_client
+            self.llm_table_type = llm.with_structured_output(TableType, method="function_calling") if llm else None
+
+        def set_llms(self, llm):
+            self.llm_table_type = llm.with_structured_output(TableType, method="function_calling") if llm else None
+
+        def _validate_llms(self):
+            if self.llm_table_type is None:
+                raise ValueError("[Schema] LLM is not set. Please set the LLM before calling this method.")
 
         def merge_nodes(self, label:str, records: List[Dict]):
             """
@@ -192,7 +204,7 @@ class GraphRAG:
                 ValueError: If the label is not found in the graph schema
             """
 
-            node_schema = self.graph_rag.schema.schema.get_node_schema_by_label(label)
+            node_schema = self.graphrag.schema.schema.get_node_schema_by_label(label)
             node_data = NodeData(node_schema=node_schema, records=records)
             node_data.merge(self.db_client)
 
@@ -230,23 +242,38 @@ class GraphRAG:
                             or if required fields in `records` are missing.
             """
 
-            start_node_schema = self.graph_rag.schema.schema.get_node_schema_by_label(start_node_label)
-            end_node_schema = self.graph_rag.schema.schema.get_node_schema_by_label(end_node_label)
-            relationship_schema = self.graph_rag.schema.schema.get_relationship_schema(rel_type, start_node_label, end_node_label)
+            start_node_schema = self.graphrag.schema.schema.get_node_schema_by_label(start_node_label)
+            end_node_schema = self.graphrag.schema.schema.get_node_schema_by_label(end_node_label)
+            relationship_schema = self.graphrag.schema.schema.get_relationship_schema(rel_type, start_node_label, end_node_label)
             relationship_data = RelationshipData(rel_schema=relationship_schema,
                                                  start_node_schema=start_node_schema,
                                                  end_node_schema=end_node_schema,
                                                  records=records)
             relationship_data.merge(self.db_client)
 
-        def merge_csv(self, csv_path: str):
+        def get_table_mapping_type(self, table_name:str, table_preview: str) -> TableTypeEnum:
+            self._validate_llms()
+            print(f"[Data] Inferring Table Type of {table_name}")
+            prompt = TABLE_TYPE_TEMPLATE.invoke({'tableName': table_name,
+                                                 'tablePreview': table_preview,
+                                                 'graphSchema':self.graphrag.schema.schema.prompt_str()})
+            pprint(prompt.text)
+            # Use structured LLM for schema inference
+            table_type:TableType = self.llm_table_type.invoke(prompt)
+            print(f"[Data] Inferred Table Type: {table_type.type}")
+            return table_type.type
+
+        def merge_csvs(self, csv_paths: List[str]):
             """
-            Merges data from a CSV file into the knowledge graph.
+            Merges data from CSV files into the knowledge graph.
 
             Args:
-                csv_path (str): The file path to a CSV file with headers.
+                csv_paths (List[str]): The file paths to csvs
             """
-            print(f"[Data] Merging data from CSV: {csv_path}")
+
+
+
+            # print(f"[Data] Merging data from CSV: {csv_path}")
             # query = f"""
             # LOAD CSV WITH HEADERS FROM 'file:///{csv_path}' AS row
             # MERGE (n:Node {{id: row.id}})

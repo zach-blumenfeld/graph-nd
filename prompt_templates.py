@@ -28,3 +28,17 @@ format the name as <originalPropertyName>_textembedding, and add a description t
 {context}
 ''')
 
+TABLE_TYPE_TEMPLATE = PromptTemplate.from_template('''
+Please tell us the type of table given the tablePreview and graphSchema it maps to.
+There are two types of tables:
+    - SINGLE_NODE: a table that maps to a single entity (i.e. node) from the graphSchema
+    - RELATIONSHIPS: a table that maps to one or more relationships between nodes in the graphSchema 
+
+## tablePreview
+Table Name: {tableName}
+{tablePreview}
+
+## graphSchema
+{graphSchema}
+''')
+

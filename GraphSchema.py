@@ -1,3 +1,5 @@
+import json
+
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, Union, List
 import yaml  # Import PyYAML for YAML serialization
@@ -92,6 +94,9 @@ class GraphSchema(Element):
         base_dict["relationships"] = [relationship.query_model_dump(**kwargs) for relationship in self.relationships]
 
         return base_dict
+
+    def prompt_str(self, **kwargs) -> str:
+        return json.dumps(self.query_model_dump(**kwargs), indent=4)
 
     def query_model_to_yaml(self, **kwargs) -> str:
         """
