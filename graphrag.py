@@ -1,4 +1,5 @@
 import json
+import os
 from pprint import pprint
 from typing import Dict, List
 
@@ -7,10 +8,11 @@ from GraphSchema import GraphSchema, NodeSchema
 from table_mapping import TableTypeEnum, TableType, NodeTableMapping, RelTableMapping
 from prompt_templates import SCHEMA_FROM_DESC_TEMPLATE, SCHEMA_FROM_SAMPLE_TEMPLATE, SCHEMA_FROM_DICT_TEMPLATE, \
     TABLE_TYPE_TEMPLATE, NODE_MAPPING_TEMPLATE, RELATIONSHIPS_MAPPING_TEMPLATE
+from utils import read_csv_preview, read_csv
 
 
 class GraphRAG:
-    def __init__(self, db_client, llm=None):
+    def __init__(self, db_client, llm=None, embedding_model=None):
         """
         Initializes the GraphRAG instance.
 
@@ -18,13 +20,14 @@ class GraphRAG:
             db_client: The database client for managing the knowledge graph
                        (Assumed to be a Neo4j driver in this code example.)
             llm: The language model for handling inference, queries and response completions.
+            embedding_model: text embedding model to use for data
         """
         self.db_client = db_client
         self.llm = llm
 
         # Initialize Schema and Data components
         self.schema = self.Schema(self.db_client, llm)
-        self.data = self.Data(self, self.db_client, llm)
+        self.data = self.Data(self, self.db_client, llm, embedding_model)
 
     def set_llm(self, llm):
         """
@@ -161,20 +164,25 @@ class GraphRAG:
         Data management for the knowledge graph.
         """
 
-        def __init__(self, graph_rag, db_client, llm):
+        def __init__(self, graphrag, db_client, llm, embedding_model=None):
             """
             Initializes the Data class.
 
             Args:
-                graph_rag: A reference to the outer `GraphRAG` instance.
+                graphrag: A reference to the outer `GraphRAG` instance.
                 db_client: The database client for managing the knowledge graph.
             """
+            self.embedding_model = None
             self.llm_rels_table_mapping = None
             self.llm_node_table_mapping = None
             self.llm_table_type = None
-            self.graphrag = graph_rag  # Reference to the outer GraphRAG instance
+            self.graphrag = graphrag  # Reference to the outer GraphRAG instance
             self.db_client = db_client
             self.set_llms(llm)
+            self.set_embedding_model(embedding_model)
+
+        def set_embedding_model(self, embedding_model):
+            self.embedding_model = embedding_model if embedding_model else None
 
         def set_llms(self, llm):
             self.llm_table_type = llm.with_structured_output(TableType, method="function_calling") if llm else None
@@ -213,9 +221,9 @@ class GraphRAG:
 
             node_schema = self.graphrag.schema.schema.get_node_schema_by_label(label)
             node_data = NodeData(node_schema=node_schema, records=records)
-            node_data.merge(self.db_client)
+            node_data.merge(self.db_client, embedding_model=self.embedding_model)
 
-        def merge_relationships(self, rel_type:str, start_node_label:str, end_node_label: str, records: Dict):
+        def merge_relationships(self, rel_type:str, start_node_label:str, end_node_label: str, records: List[Dict]):
             """
             Merges relationships into the database using the provided relationship type, start node label,
             end node label, and record data.
@@ -292,25 +300,73 @@ class GraphRAG:
             rels_mapping:RelTableMapping = self.llm_rels_table_mapping.invoke(prompt)
             return rels_mapping
 
-        def merge_csvs(self, csv_paths: List[str]):
+        def merge_node_table(self, table_records:List[Dict], node_mapping:NodeTableMapping):
+                node_records = [node_mapping.convert_to_node_record(rec)['record'] for rec in table_records]
+                self.merge_nodes(node_mapping.nodeLabel, node_records)
+
+        def merge_relationships_from_table(self, table_records:List[Dict], rel_mapping:RelTableMapping):
+            rel_records = dict()
+            node_records = dict()
+            dicts_of_triple_records = [rel_mapping.convert_to_triple_records(rec) for rec in table_records]
+
+            ## for each list of triples append to unique rel_records
+            for triple_record in dicts_of_triple_records:
+                for triple_key, triple_data in triple_record.items():
+                    if triple_key not in rel_records: #get relationship metadata
+                        rel_records[triple_key] = {"metadata": {'rel_type':triple_data[1]['rel_type'],
+                                                            'start_node_label': triple_data[1]['start_node_label'],
+                                                            'end_node_label': triple_data[1]['end_node_label']},
+                                               "records":[]}
+                    rel_records[triple_key]["records"].append(triple_data[1]['record']) #appends the relationship
+                    if triple_data[0]['label'] not in node_records:
+                        node_records[triple_data[0]['label']] = []
+                    node_records[triple_data[0]['label']].append(triple_data[0]['record']) # appends start node
+                    if triple_data[2]['label'] not in node_records:
+                        node_records[triple_data[2]['label']] = []
+                    node_records[triple_data[2]['label']].append(triple_data[2]['record']) # appends end node
+
+            # merge nodes
+            for node_label, node_records_list in node_records.items():
+                self.merge_nodes(node_label, node_records_list)
+
+            #merge relationships
+            for rel_key, rel_data in rel_records.items():
+                self.merge_relationships(rel_data['metadata']['rel_type'],
+                                        rel_data['metadata']['start_node_label'],
+                                        rel_data['metadata']['end_node_label'],
+                                        rel_data['records'])
+
+        def merge_node_csv(self, file_path: str):
+            table_records = read_csv(file_path)
+            table_preview = read_csv_preview(file_path)
+            node_mapping = self.get_table_node_mapping(os.path.basename(file_path), table_preview)
+            self.merge_node_table(table_records, node_mapping)
+
+        def merge_relationships_csv(self, file_path: str):
+            table_records = read_csv(file_path)
+            table_preview = read_csv_preview(file_path)
+            rel_mapping = self.get_table_relationships_mapping(os.path.basename(file_path), table_preview)
+            self.merge_relationships_from_table(table_records, rel_mapping)
+
+        def merge_csv(self, file_path: str):
+            table_preview = read_csv_preview(file_path)
+            table_type = self.get_table_mapping_type(os.path.basename(file_path), table_preview)
+            if table_type == TableTypeEnum.SINGLE_NODE:
+                self.merge_node_csv(file_path)
+            elif table_type == TableTypeEnum.RELATIONSHIPS:
+                self.merge_relationships_csv(file_path)
+            else:
+                raise ValueError(f"[Data] Unable to determine table type for {file_path}. Got table_type={table_type} instead.")
+
+        def merge_csvs(self, file_paths: List[str]):
             """
             Merges data from CSV files into the knowledge graph.
 
             Args:
                 csv_paths (List[str]): The file paths to csvs
             """
-
-
-
-            # print(f"[Data] Merging data from CSV: {csv_path}")
-            # query = f"""
-            # LOAD CSV WITH HEADERS FROM 'file:///{csv_path}' AS row
-            # MERGE (n:Node {{id: row.id}})
-            # SET n += row
-            # """
-            # with self.db_client.session() as session:
-            #     session.run(query)
-            #     print("[Data] Data merged from CSV.")
+            for file_path in file_paths:
+                self.merge_csv(file_path)
 
         def merge_doc(self, doc_path: str):
             """

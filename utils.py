@@ -75,3 +75,15 @@ def read_csv_preview(file_path, truncate_length=30, max_rows=5):
         raise FileNotFoundError("Error: File not found.")
     except Exception as e:
         raise Exception(f"Error while reading CSV: {str(e)}")
+
+def read_csv(file_path):
+    """
+    Reads a CSV file and returns its content as a list of dictionaries.
+
+    :param file_path: The path to the CSV file.
+    :return: A list of dictionaries where keys are column headers and values are row values.
+    """
+    with open(file_path, mode='r', newline='', encoding='utf-8') as csv_file:
+        reader = csv.DictReader(csv_file)
+        records = [row for row in reader]
+    return records

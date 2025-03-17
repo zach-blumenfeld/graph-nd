@@ -77,10 +77,18 @@ class TestGraphRAGNodeRelTableMappings(unittest.TestCase):
         # Assert individual fields of the node mapping
         self.assertEqual(node_mapping.tableName, 'actors', "The table name does not match.")
         self.assertEqual(node_mapping.nodeLabel, 'Person', "The node label does not match.")
-        self.assertEqual(node_mapping.nodeIdColumn, 'id', "The node id column does not match.")
+        self.assertEqual(node_mapping.nodeId.propertyName, 'person_id', "The node id does not match.")
+        self.assertEqual(node_mapping.nodeId.columnName, 'id', "The node id column does not match.")
+        # Expected mappings as a set of tuples
+        expected_properties = {("names", "name"), ("age (in years)", "age")}
+        # Convert the list of PropertyMapping objects to a set of tuples
+        actual_properties = {
+            (prop.columnName, prop.propertyName) for prop in node_mapping.properties
+        }
+        # Assert equality of the sets
         self.assertEqual(
-            node_mapping.properties,
-            {"names":"name", "age (in years)":"age"},
+            actual_properties,
+            expected_properties,
             "The node properties mapping does not match."
         )
 
@@ -105,22 +113,36 @@ class TestGraphRAGNodeRelTableMappings(unittest.TestCase):
         # Assert first relationship mapping fields
         self.assertEqual(rels_mapping.relationshipMaps[0].relationshipType, 'ACTED_IN',
                          "The relationship type doesn't not match.")
-        self.assertIsNone(rels_mapping.relationshipMaps[0].relationshipIdColumn,
-                          "The relationship id column should be None.")
-        self.assertEqual(rels_mapping.relationshipMaps[0].properties,
-                         {"actorRoles":"role"}, "The relationship properties mapping does not match.")
+        self.assertIsNone(rels_mapping.relationshipMaps[0].relationshipId,
+                          "The relationship id should be None.")
+        # Expected mappings as a set of tuples
+        expected_rel_properties = {("actorRoles", "role")}
+        # Convert the list of PropertyMapping objects to a set of tuples
+        actual_rel_properties = {
+            (prop.columnName, prop.propertyName) for prop in rels_mapping.relationshipMaps[0].properties
+        }
+        # Assert equality of the sets
+        self.assertEqual(
+            actual_rel_properties,
+            expected_rel_properties,
+            "The node properties mapping does not match."
+        )
 
        # Assert start node fields
-        self.assertEqual(rels_mapping.relationshipMaps[0].startNodeMap.nodeIdColumn, 'actorIds',
+        self.assertEqual(rels_mapping.relationshipMaps[0].startNodeMap.nodeId.columnName, 'actorIds',
                          "The start node id column does not match.")
+        self.assertEqual(rels_mapping.relationshipMaps[0].startNodeMap.nodeId.propertyName, 'person_id',
+                         "The start node id does not match.")
         self.assertEqual(rels_mapping.relationshipMaps[0].startNodeMap.nodeLabel, 'Person',
                          "The start node label does not match.")
         self.assertIsNone(rels_mapping.relationshipMaps[0].startNodeMap.properties,
                           "The start node properties should be None.")
 
         # Assert end node fields
-        self.assertEqual(rels_mapping.relationshipMaps[0].endNodeMap.nodeIdColumn, 'movieIds',
+        self.assertEqual(rels_mapping.relationshipMaps[0].endNodeMap.nodeId.columnName, 'movieIds',
                          "The end node id column does not match.")
+        self.assertEqual(rels_mapping.relationshipMaps[0].endNodeMap.nodeId.propertyName, 'movie_id',
+                         "The end node id does not match.")
         self.assertEqual(rels_mapping.relationshipMaps[0].endNodeMap.nodeLabel, 'Movie',
                          "The end node label does not match.")
         self.assertIsNone(rels_mapping.relationshipMaps[0].endNodeMap.properties,
