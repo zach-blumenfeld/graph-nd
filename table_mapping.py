@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -23,15 +23,15 @@ class NodeMap(BaseModel):
     """
     nodeLabel: str = Field(description="the node label")
     nodeIdColumn: str  = Field(description="the column name that maps to the node id property")
-    properties: Dict[str, str] = Field(description="A map of other table column names to node property names.")
+    properties: Optional[Dict[str, str]] = Field(None, description="A map of other table column names (keys) to node property names (values).")
 
 class RelationshipMap(BaseModel):
     """
     The mapping of table columns to a relationship and its start and end nodes.
     """
     relationshipType: str = Field(description="the relationship type")
-    relationshipIdColumn: str  = Field(None, description="the column name that maps to the relationship id property if applicable")
-    properties: Dict[str, str] = Field(description="A map of other table column names to relationship property names.")
+    relationshipIdColumn: Optional[str]  = Field(None, description="the column name that maps to the relationship id property if applicable")
+    properties: Optional[Dict[str, str]] = Field(description="A map of other table column names (keys) to relationship property names (values).")
     startNodeMap: NodeMap = Field(description="the node map for the start node")
     endNodeMap: NodeMap = Field(description="the node map for the end node")
 

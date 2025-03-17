@@ -42,3 +42,27 @@ Table Name: {tableName}
 {graphSchema}
 ''')
 
+NODE_MAPPING_TEMPLATE = PromptTemplate.from_template('''
+The tablePreview represents a table for an entity that we need to map to a node in the below graphSchema.  
+Please identify the node and provide this mapping.
+
+## tablePreview
+Table Name: {tableName}
+{tablePreview}
+
+## graphSchema
+{graphSchema}
+''')
+
+RELATIONSHIPS_MAPPING_TEMPLATE = PromptTemplate.from_template('''
+The tablePreview represents a table for 1 or more relationships between entities that we need to map to the below graphSchema.  
+Please identify the relationships and provide this mapping.
+
+## tablePreview
+Table Name: {tableName}
+{tablePreview}
+
+## graphSchema
+{graphSchema}
+''')
+

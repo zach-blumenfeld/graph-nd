@@ -4,9 +4,9 @@ from typing import Dict, List
 
 from GraphData import NodeData, RelationshipData
 from GraphSchema import GraphSchema, NodeSchema
-from table_mapping import TableTypeEnum, TableType
+from table_mapping import TableTypeEnum, TableType, NodeTableMapping, RelTableMapping
 from prompt_templates import SCHEMA_FROM_DESC_TEMPLATE, SCHEMA_FROM_SAMPLE_TEMPLATE, SCHEMA_FROM_DICT_TEMPLATE, \
-    TABLE_TYPE_TEMPLATE
+    TABLE_TYPE_TEMPLATE, NODE_MAPPING_TEMPLATE, RELATIONSHIPS_MAPPING_TEMPLATE
 
 
 class GraphRAG:
@@ -169,16 +169,23 @@ class GraphRAG:
                 graph_rag: A reference to the outer `GraphRAG` instance.
                 db_client: The database client for managing the knowledge graph.
             """
+            self.llm_rels_table_mapping = None
+            self.llm_node_table_mapping = None
+            self.llm_table_type = None
             self.graphrag = graph_rag  # Reference to the outer GraphRAG instance
             self.db_client = db_client
-            self.llm_table_type = llm.with_structured_output(TableType, method="function_calling") if llm else None
+            self.set_llms(llm)
 
         def set_llms(self, llm):
             self.llm_table_type = llm.with_structured_output(TableType, method="function_calling") if llm else None
+            self.llm_node_table_mapping = llm.with_structured_output(NodeTableMapping,
+                                                                     method="function_calling") if llm else None
+            self.llm_rels_table_mapping = llm.with_structured_output(RelTableMapping,
+                                                                     method="function_calling") if llm else None
 
         def _validate_llms(self):
-            if self.llm_table_type is None:
-                raise ValueError("[Schema] LLM is not set. Please set the LLM before calling this method.")
+            if any(attr is None for attr in [self.llm_table_type, self.llm_node_table_mapping, self.llm_rels_table_mapping]):
+                raise ValueError("[Data] LLM is not set. Please set the LLM before calling this method.")
 
         def merge_nodes(self, label:str, records: List[Dict]):
             """
@@ -262,6 +269,28 @@ class GraphRAG:
             table_type:TableType = self.llm_table_type.invoke(prompt)
             print(f"[Data] Inferred Table Type: {table_type.type}")
             return table_type.type
+
+        def get_table_node_mapping(self, table_name:str, table_preview: str) -> NodeTableMapping:
+            self._validate_llms()
+            print(f"[Data] Creating node mapping for {table_name}")
+            prompt = NODE_MAPPING_TEMPLATE.invoke({'tableName': table_name,
+                                                 'tablePreview': table_preview,
+                                                 'graphSchema':self.graphrag.schema.schema.prompt_str()})
+            pprint(prompt.text)
+            # Use structured LLM for schema inference
+            node_mapping:NodeTableMapping = self.llm_node_table_mapping.invoke(prompt)
+            return node_mapping
+
+        def get_table_relationships_mapping(self, table_name:str, table_preview: str) -> RelTableMapping:
+            self._validate_llms()
+            print(f"[Data] Creating relationships mapping for {table_name}")
+            prompt = RELATIONSHIPS_MAPPING_TEMPLATE.invoke({'tableName': table_name,
+                                                 'tablePreview': table_preview,
+                                                 'graphSchema':self.graphrag.schema.schema.prompt_str()})
+            pprint(prompt.text)
+            # Use structured LLM for schema inference
+            rels_mapping:RelTableMapping = self.llm_rels_table_mapping.invoke(prompt)
+            return rels_mapping
 
         def merge_csvs(self, csv_paths: List[str]):
             """
