@@ -104,6 +104,27 @@ class TestMergeCSVsFunctional(unittest.TestCase):
         Cleanup resources.
         """
         cls.db_client.close()
+        """
+        Clean up the database and close the connection.
+        """
+        with cls.db_client.session() as session:
+            # Delete all nodes and relationships
+            session.run("MATCH (n) DETACH DELETE n")
+
+            # Retrieve and drop specific indexes
+            result = session.run("""
+                SHOW INDEXES YIELD name, type
+                WHERE type IN ["FULLTEXT", "VECTOR"]
+                RETURN name
+            """)
+
+            for record in result:
+                index_name = record["name"]
+                session.run(f"DROP INDEX {index_name} IF EXISTS")
+
+            #drop constraints
+            result = session.run("CALL apoc.schema.assert({},{},true) YIELD label, key RETURN *")
+
 
         del cls.graphrag
 
