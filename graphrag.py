@@ -368,14 +368,15 @@ class GraphRAG:
             for file_path in file_paths:
                 self.merge_csv(file_path)
 
-        def merge_doc(self, doc_path: str):
+
+        def merge_pdf(self, file_path: str):
             """
-            Merges data from a document file into the knowledge graph.
+            Merges data from a pdf file into the knowledge graph.
 
             Args:
                 doc_path (str): Path to the document to be parsed.
             """
-            print(f"[Data] Merging data from document: {doc_path}")
+            print(f"[Data] Merging data from document: {file_path}")
             # Placeholder: Implement actual document parsing and merging logic
 
         def merge_db_tables(self, source_client):

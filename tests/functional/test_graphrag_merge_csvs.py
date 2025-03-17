@@ -103,10 +103,7 @@ class TestMergeCSVsFunctional(unittest.TestCase):
         """
         Cleanup resources.
         """
-        cls.db_client.close()
-        """
-        Clean up the database and close the connection.
-        """
+
         with cls.db_client.session() as session:
             # Delete all nodes and relationships
             session.run("MATCH (n) DETACH DELETE n")
@@ -123,9 +120,9 @@ class TestMergeCSVsFunctional(unittest.TestCase):
                 session.run(f"DROP INDEX {index_name} IF EXISTS")
 
             #drop constraints
-            result = session.run("CALL apoc.schema.assert({},{},true) YIELD label, key RETURN *")
+            session.run("CALL apoc.schema.assert({},{},true) YIELD label, key RETURN *")
 
-
+        cls.db_client.close()
         del cls.graphrag
 
 
