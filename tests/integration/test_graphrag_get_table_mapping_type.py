@@ -9,7 +9,7 @@ from graphrag import GraphRAG
 from utils import format_table_as_markdown_preview
 
 
-class TestGraphRAGDataGetTableMappingTypeWithSchema(unittest.TestCase):
+class TestGraphRAGDataGetTableMappingType(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """
