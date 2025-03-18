@@ -70,7 +70,7 @@ def batch_embed(df: pd.DataFrame, field_to_embed: str, embedding_field_name: str
 
     # Step 2: Generate embeddings for the filtered rows
     embeddings = []
-    texts = filtered_df[field_to_embed].tolist()
+    texts = filtered_df[field_to_embed].to_list()
     print("[Embedding] Generating embeddings in chunks...")
 
     # Use tqdm to show progress during embedding generation
@@ -88,8 +88,11 @@ def batch_embed(df: pd.DataFrame, field_to_embed: str, embedding_field_name: str
 
 
 class NodeData(BaseModel):
+    """
+    Data representing graph nodes.  With their provided schema
+    """
     node_schema: NodeSchema = Field(description="schema for the nodes")
-    records: List[Dict[str, Any]] = Field(default_factory=list, description="records of node properties")
+    records: List[Dict[str, Any]] = Field(default_factory=list, description="records of node properties mapping property names to values.")
 
     #TODO: Currently uses UNIQUE instead of Key for Community.  Consider revizing later.
     def create_constraint_if_not_exists(self, db_client):
@@ -213,6 +216,9 @@ class NodeData(BaseModel):
 
 
 class RelationshipData(BaseModel):
+    """
+    Data representing graph relationships.  With their provided schema
+    """
     rel_schema: RelationshipSchema = Field(description="schema for the relationships")
     start_node_schema: NodeSchema = Field(description="schema for the start node")
     end_node_schema: NodeSchema = Field(description="schema for the end node")
@@ -250,8 +256,11 @@ class RelationshipData(BaseModel):
 
 
 class GraphData(BaseModel):
+    """
+    Data representing graph nodes relationships, relationshipDatas should never include nodes not in NodeDatas
+    """
     nodeDatas: List[NodeData] = Field(default_factory=list, description="list of NodeData records")
-    relationshipDatas: List[RelationshipData] = Field(default_factory=list, description="list of RelationshipData records")
+    relationshipDatas: Optional[List[RelationshipData]] = Field(default_factory=list, description="list of RelationshipData records")
 
     def merge(self, db_client, embedding_model=None):
         for nodeData in self.nodeDatas:

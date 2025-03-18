@@ -3,12 +3,15 @@ import os
 from pprint import pprint
 from typing import Dict, List
 
-from GraphData import NodeData, RelationshipData
+from tqdm import tqdm
+
+from GraphData import NodeData, RelationshipData, GraphData
 from GraphSchema import GraphSchema, NodeSchema
+from graph_records import SubGraph
 from table_mapping import TableTypeEnum, TableType, NodeTableMapping, RelTableMapping
 from prompt_templates import SCHEMA_FROM_DESC_TEMPLATE, SCHEMA_FROM_SAMPLE_TEMPLATE, SCHEMA_FROM_DICT_TEMPLATE, \
-    TABLE_TYPE_TEMPLATE, NODE_MAPPING_TEMPLATE, RELATIONSHIPS_MAPPING_TEMPLATE
-from utils import read_csv_preview, read_csv
+    TABLE_TYPE_TEMPLATE, NODE_MAPPING_TEMPLATE, RELATIONSHIPS_MAPPING_TEMPLATE, TEXT_EXTRACTION_TEMPLATE
+from utils import read_csv_preview, read_csv, load_pdf
 
 
 class GraphRAG:
@@ -176,6 +179,7 @@ class GraphRAG:
             self.llm_rels_table_mapping = None
             self.llm_node_table_mapping = None
             self.llm_table_type = None
+            self.llm_text_extractor = None
             self.graphrag = graphrag  # Reference to the outer GraphRAG instance
             self.db_client = db_client
             self.set_llms(llm)
@@ -190,6 +194,8 @@ class GraphRAG:
                                                                      method="function_calling") if llm else None
             self.llm_rels_table_mapping = llm.with_structured_output(RelTableMapping,
                                                                      method="function_calling") if llm else None
+            self.llm_text_extractor = llm.with_structured_output(SubGraph,
+                                                                 method="function_calling") if llm else None
 
         def _validate_llms(self):
             if any(attr is None for attr in [self.llm_table_type, self.llm_node_table_mapping, self.llm_rels_table_mapping]):
@@ -363,19 +369,35 @@ class GraphRAG:
             Merges data from CSV files into the knowledge graph.
 
             Args:
-                csv_paths (List[str]): The file paths to csvs
+                file_paths (List[str]): The file paths to csvs
             """
             for file_path in file_paths:
                 self.merge_csv(file_path)
 
 
-        def merge_pdf(self, file_path: str):
+        def merge_pdf(self, file_path: str, chunk_strategy="BY_PAGE", chunk_size=20):
             """
             Merges data from a pdf file into the knowledge graph.
-
-            Args:
-                doc_path (str): Path to the document to be parsed.
             """
+            texts = load_pdf(file_path=file_path, chunk_strategy=chunk_strategy, chunk_size=chunk_size)
+            self._validate_llms()
+            for text in tqdm(texts, desc="Extracting entities from PDF"):
+                prompt = TEXT_EXTRACTION_TEMPLATE.invoke({'fileName': os.path.basename(file_path),
+                                                     'text': text,
+                                                     'graphSchema':self.graphrag.schema.schema.prompt_str()})
+                #pprint(prompt.text)
+                # Use structured LLM for extraction
+                extracted_subgraph: SubGraph = self.llm_text_extractor.invoke(prompt)
+                graph_data = extracted_subgraph.convert_to_graph_data(self.graphrag.schema.schema)
+                # merge nodes
+                for node_data in graph_data.nodeDatas:
+                    node_data.merge(self.db_client, embedding_model=self.embedding_model)
+                # merge relationships
+                for rels_data in graph_data.relationshipDatas:
+                    rels_data.merge(self.db_client)
+
+
+
             print(f"[Data] Merging data from document: {file_path}")
             # Placeholder: Implement actual document parsing and merging logic
 

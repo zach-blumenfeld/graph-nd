@@ -66,3 +66,18 @@ Table Name: {tableName}
 {graphSchema}
 ''')
 
+TEXT_EXTRACTION_TEMPLATE = PromptTemplate.from_template('''
+Extract nodes, relationships and their properties where applicable from the textChunk according to the graphSchema. 
+This data will be merged into a knowledge graph to support downstream search and analytics. As such:
+- You must strictly adhere to the schema
+- to find data to populate node ids, use the graph schema to find the node id names in the text.
+- every relationship requires start and end ids, do not provide relationships with start and end ids that don't correspond to existing nodes you extracted
+- You may find that not all nodes or relationship types are present in the graph schema.  That is okay. 
+
+## TextChunk From File {fileName}
+{text}
+
+## GraphSchema
+{graphSchema}
+''')
+
