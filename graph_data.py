@@ -71,17 +71,17 @@ def batch_embed(df: pd.DataFrame, field_to_embed: str, embedding_field_name: str
     # Step 2: Generate embeddings for the filtered rows
     embeddings = []
     texts = filtered_df[field_to_embed].to_list()
-    print("[Embedding] Generating embeddings in chunks...")
+    #print("[Embedding] Generating embeddings in chunks...")
 
     # Use tqdm to show progress during embedding generation
-    for chunk in tqdm(chunks(texts, n=chunk_size), desc="Processing embedding chunks"):
+    for chunk in chunks(texts, n=chunk_size): #tqdm(chunks(texts, n=chunk_size), desc="Processing embedding chunks"):
         # Generate embeddings for each chunk and extend the embeddings list
         embeddings.extend(embedding_model.embed_documents(chunk))
 
     # Step 3: Create a new column in the filtered DataFrame for embeddings
     filtered_df[embedding_field_name] = embeddings
 
-    print("[Embedding] Process completed successfully.")
+    #print("[Embedding] Process completed successfully.")
     return filtered_df, len(embeddings[0])
 
 
@@ -169,7 +169,7 @@ class NodeData(BaseModel):
         #loop through
         if len(embed_maps) > 0:
             df = pd.DataFrame(self.records)
-            for embed_map in tqdm(embed_maps, desc="Embedding Node Properties"):
+            for embed_map in embed_maps: #tqdm(embed_maps, desc="Embedding Node Properties"):
                 if embed_map['prop'] in df.columns:
                     if embedding_model is None:
                         raise ValueError(
@@ -264,10 +264,10 @@ class GraphData(BaseModel):
 
     def merge(self, db_client, embedding_model=None):
         for nodeData in self.nodeDatas:
-            print(f"Merging {nodeData.node_schema.label} nodes")
+            #print(f"Merging {nodeData.node_schema.label} nodes")
             nodeData.merge(db_client, embedding_model=embedding_model)
 
         for relData in self.relationshipDatas:
-            print(f"Merging ({relData.start_node_schema.label})-[{relData.rel_schema.type}]->({relData.end_node_schema.label}) relationships")
+            #print(f"Merging ({relData.start_node_schema.label})-[{relData.rel_schema.type}]->({relData.end_node_schema.label}) relationships")
             relData.merge(db_client)
 

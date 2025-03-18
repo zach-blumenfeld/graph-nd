@@ -32,8 +32,7 @@ def main():
     graphrag.schema.load('graph-schema.json')
 
     # ask a question
-    #question = "what are the inputs to CPUs?"
-    question = "what sorts of chemicals are involved and what components are they inputs to?"
+    question = "what sequence of components depend on silicon wafers?"
     print(f"Question: {question}")
     graphrag.agent(question)
 

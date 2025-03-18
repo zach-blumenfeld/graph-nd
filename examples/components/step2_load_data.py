@@ -30,12 +30,12 @@ def main():
 
     # get graph schema
     graphrag.schema.load('graph-schema.json')
-    # merge dtaa in the graph - order independent and idempotent
+    # merge data in the graph - order independent and idempotent
     print("Merging structured data into graph (csv files)...")
-    graphrag.data.merge_csvs(['data/component-types.csv', 'data/component-input-output.csv'])
+    graphrag.data.merge_csvs(['component-types.csv', 'component-input-output.csv'])
     # merge unstructured data into graph
     print("Merging unstructured data into graph (pdf file)...")
-    graphrag.data.merge_pdf('data/component-catalog.pdf')
+    graphrag.data.merge_pdf('component-catalog.pdf')
     # Notify the user
 
 

@@ -82,11 +82,10 @@ class GraphRAG:
                 description (str): A text description of the data for schema inference.
             """
             self._validate_llm()
-            print(f"[Schema] Inferring schema based on: {description}")
             prompt = SCHEMA_FROM_DESC_TEMPLATE.invoke({'context':description})
             # Use structured LLM for schema inference
             self.schema = self.llm.invoke(prompt)
-            print(f"Generated schema:\n {self.schema}")
+            print(f"[Schema] Generated schema:\n {self.schema.prompt_str()}")
             return self.schema
 
         def infer_from_sample(self, text: str):
@@ -97,11 +96,10 @@ class GraphRAG:
                 text (str): A sample of the data in text form.
             """
             self._validate_llm()
-            print(f"[Schema] Inferring schema based on sample data")
             prompt = SCHEMA_FROM_SAMPLE_TEMPLATE.invoke({'context':text})
             # Use structured LLM for schema inference
             self.schema = self.llm.invoke(prompt)
-            print(f"[Schema] Generated schema:\n {self.schema}")
+            print(f"[Schema] Generated schema:\n {self.schema.prompt_str()}")
             return self.schema
 
         def craft_from_dict(self, schema_json: str):
@@ -112,11 +110,10 @@ class GraphRAG:
                 schema_json (str): A JSON-like dictionary defining the schema.
             """
             self._validate_llm()
-            print(f"[Schema] Crafting schema based on provided dict")
             prompt = SCHEMA_FROM_DICT_TEMPLATE.invoke({'context':schema_json})
             # Use structured LLM for schema inference
             self.schema = self.llm.invoke(prompt)
-            print(f"[Schema] Generated schema:\n {self.schema}")
+            print(f"[Schema] Crafted schema:\n {self.schema.prompt_str()}")
             return self.schema
 
 
@@ -128,8 +125,7 @@ class GraphRAG:
                 graph_schema (GraphSchema): The exact schema to use.
             """
             self.schema = graph_schema
-            print("[Schema] Defining schema...")
-            print(f"[Schema] Schema defined as:\n {graph_schema}")
+            print(f"[Schema] Schema defined as:\n {self.schema.prompt_str()}")
 
         def export(self, file_path):
             """
@@ -286,34 +282,34 @@ class GraphRAG:
 
         def get_table_mapping_type(self, table_name:str, table_preview: str) -> TableTypeEnum:
             self._validate_llms()
-            print(f"[Data] Inferring Table Type of {table_name}")
+            #print(f"[Data] Inferring Table Type of {table_name}")
             prompt = TABLE_TYPE_TEMPLATE.invoke({'tableName': table_name,
                                                  'tablePreview': table_preview,
                                                  'graphSchema':self.graphrag.schema.schema.prompt_str()})
-            pprint(prompt.text)
+            #pprint(prompt.text)
             # Use structured LLM for schema inference
             table_type:TableType = self.llm_table_type.invoke(prompt)
-            print(f"[Data] Inferred Table Type: {table_type.type}")
+            #print(f"[Data] Inferred Table Type: {table_type.type}")
             return table_type.type
 
         def get_table_node_mapping(self, table_name:str, table_preview: str) -> NodeTableMapping:
             self._validate_llms()
-            print(f"[Data] Creating node mapping for {table_name}")
+            #print(f"[Data] Creating node mapping for {table_name}")
             prompt = NODE_MAPPING_TEMPLATE.invoke({'tableName': table_name,
                                                  'tablePreview': table_preview,
                                                  'graphSchema':self.graphrag.schema.schema.prompt_str()})
-            pprint(prompt.text)
+            #pprint(prompt.text)
             # Use structured LLM for schema inference
             node_mapping:NodeTableMapping = self.llm_node_table_mapping.invoke(prompt)
             return node_mapping
 
         def get_table_relationships_mapping(self, table_name:str, table_preview: str) -> RelTableMapping:
             self._validate_llms()
-            print(f"[Data] Creating relationships mapping for {table_name}")
+            #print(f"[Data] Creating relationships mapping for {table_name}")
             prompt = RELATIONSHIPS_MAPPING_TEMPLATE.invoke({'tableName': table_name,
                                                  'tablePreview': table_preview,
                                                  'graphSchema':self.graphrag.schema.schema.prompt_str()})
-            pprint(prompt.text)
+            #pprint(prompt.text)
             # Use structured LLM for schema inference
             rels_mapping:RelTableMapping = self.llm_rels_table_mapping.invoke(prompt)
             return rels_mapping
@@ -369,6 +365,7 @@ class GraphRAG:
         def merge_csv(self, file_path: str):
             table_preview = read_csv_preview(file_path)
             table_type = self.get_table_mapping_type(os.path.basename(file_path), table_preview)
+            print(f"[Data] Merging {os.path.basename(file_path)} as {table_type}.")
             if table_type == TableTypeEnum.SINGLE_NODE:
                 self.merge_node_csv(file_path)
             elif table_type == TableTypeEnum.RELATIONSHIPS:
@@ -425,6 +422,7 @@ class GraphRAG:
                 RuntimeError: If the LLM validation fails or if any processing error occurs during text
                     extraction or graph merging.
             """
+            print(f"[Data] Merging data from document: {file_path}")
             texts = load_pdf(file_path=file_path, chunk_strategy=chunk_strategy, chunk_size=chunk_size)
             self._validate_llms()
             for text in tqdm(texts, desc="Extracting entities from PDF"):
@@ -436,21 +434,8 @@ class GraphRAG:
                 # merge relationships
                 for rels_data in graph_data.relationshipDatas:
                     rels_data.merge(self.db_client)
-
-
-
-            print(f"[Data] Merging data from document: {file_path}")
             # Placeholder: Implement actual document parsing and merging logic
 
-        def merge_db_tables(self, source_client):
-            """
-            Merges data from external database tables into the knowledge graph.
-
-            Args:
-                source_client: A client to connect to the source database.
-            """
-            print("[Data] Merging data from external database tables.")
-            # Placeholder for database table merging logic
     def get_search_configs_prompt(self) -> str:
         search_args_prompt = ''
         for node in self.schema.schema.nodes:
@@ -626,7 +611,7 @@ class GraphRAG:
             self.create_or_replace_agent()
         system_instruction = AGENT_SYSTEM_TEMPLATE.invoke({'searchConfigs':self.get_search_configs_prompt(),
                                                         'graphSchema':self.schema.schema.prompt_str()}).to_string()
-        print(system_instruction)
+        #print(system_instruction)
         for step in self.agent_executor.stream(
                 {"messages": [SystemMessage(content=system_instruction), HumanMessage(content=question)]},
                 stream_mode="values",
