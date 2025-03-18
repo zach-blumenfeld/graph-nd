@@ -2,7 +2,7 @@ import unittest
 from pprint import pprint
 import yaml  # For parsing and verifying the YAML output
 
-from GraphSchema import GraphSchema, QueryPattern, RelationshipSchema, PropertySchema, NodeSchema
+from Graph_schema import GraphSchema, QueryPattern, RelationshipSchema, PropertySchema, NodeSchema
 
 
 class TestGraphSchemaToYAML(unittest.TestCase):

@@ -4,8 +4,8 @@ import unittest
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
 
-from GraphData import NodeData, RelationshipData, GraphData
-from GraphSchema import NodeSchema, PropertySchema, RelationshipSchema, QueryPattern
+from Graph_data import NodeData, RelationshipData, GraphData
+from Graph_schema import NodeSchema, PropertySchema, RelationshipSchema, QueryPattern
 
 
 class TestGraphDataMerge(unittest.TestCase):

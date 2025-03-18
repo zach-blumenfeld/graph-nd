@@ -5,7 +5,7 @@ from neo4j import RoutingControl
 from pydantic import BaseModel, Field
 from tqdm import tqdm
 
-from GraphSchema import NodeSchema, RelationshipSchema
+from Graph_schema import NodeSchema, RelationshipSchema
 
 
 def chunks(xs, n=10_000):

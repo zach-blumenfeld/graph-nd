@@ -5,8 +5,8 @@ from typing import Dict, List
 
 from tqdm import tqdm
 
-from GraphData import NodeData, RelationshipData, GraphData
-from GraphSchema import GraphSchema, NodeSchema
+from Graph_data import NodeData, RelationshipData, GraphData
+from Graph_schema import GraphSchema, NodeSchema
 from graph_records import SubGraph
 from table_mapping import TableTypeEnum, TableType, NodeTableMapping, RelTableMapping
 from prompt_templates import SCHEMA_FROM_DESC_TEMPLATE, SCHEMA_FROM_SAMPLE_TEMPLATE, SCHEMA_FROM_DICT_TEMPLATE, \

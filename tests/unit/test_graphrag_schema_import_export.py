@@ -1,7 +1,7 @@
 import unittest
 import json
 from tempfile import NamedTemporaryFile
-from GraphSchema import GraphSchema, NodeSchema, RelationshipSchema, PropertySchema, QueryPattern
+from Graph_schema import GraphSchema, NodeSchema, RelationshipSchema, PropertySchema, QueryPattern
 from graphrag import GraphRAG  # Replace with actual import for GraphRAG
 
 

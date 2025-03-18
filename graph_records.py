@@ -4,8 +4,8 @@ from typing import Dict, Any, Optional, List, Tuple
 import pandas as pd
 from pydantic import BaseModel, Field
 
-from GraphData import NodeData, RelationshipData, GraphData
-from GraphSchema import GraphSchema
+from Graph_data import NodeData, RelationshipData, GraphData
+from Graph_schema import GraphSchema
 
 
 class Node(BaseModel):
