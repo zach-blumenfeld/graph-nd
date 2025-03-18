@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from neo4j import GraphDatabase
 
 from graphrag import GraphRAG
-from Graph_schema import NodeSchema, PropertySchema, RelationshipSchema, QueryPattern, GraphSchema
+from graph_schema import NodeSchema, PropertySchema, RelationshipSchema, QueryPattern, GraphSchema
 
 
 class TestGraphRAGMergeNodeRels(unittest.TestCase):

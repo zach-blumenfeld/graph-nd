@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 
-from Graph_schema import GraphSchema
+from graph_schema import GraphSchema
 from graphrag import GraphRAG  # Replace with actual import path
 
 

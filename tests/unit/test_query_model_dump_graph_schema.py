@@ -1,7 +1,7 @@
 import unittest
 from pprint import pprint  # For nicely formatted printing
 
-from Graph_schema import NodeSchema, PropertySchema, RelationshipSchema, QueryPattern, GraphSchema
+from graph_schema import NodeSchema, PropertySchema, RelationshipSchema, QueryPattern, GraphSchema
 
 
 class TestGraphSchemaQueryModelDump(unittest.TestCase):

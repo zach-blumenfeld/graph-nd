@@ -4,7 +4,7 @@ import unittest
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 
-from Graph_schema import NodeSchema, PropertySchema, RelationshipSchema, QueryPattern, GraphSchema
+from graph_schema import NodeSchema, PropertySchema, RelationshipSchema, QueryPattern, GraphSchema
 from graphrag import GraphRAG
 from utils import format_table_as_markdown_preview
 
