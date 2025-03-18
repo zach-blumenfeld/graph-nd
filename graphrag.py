@@ -1,8 +1,11 @@
 import json
 import os
 from pprint import pprint
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
+from langchain_core.messages import SystemMessage, HumanMessage
+from langgraph.prebuilt import create_react_agent
+from neo4j import RoutingControl
 from tqdm import tqdm
 
 from graph_data import NodeData, RelationshipData, GraphData
@@ -10,7 +13,8 @@ from graph_schema import GraphSchema, NodeSchema
 from graph_records import SubGraph
 from table_mapping import TableTypeEnum, TableType, NodeTableMapping, RelTableMapping
 from prompt_templates import SCHEMA_FROM_DESC_TEMPLATE, SCHEMA_FROM_SAMPLE_TEMPLATE, SCHEMA_FROM_DICT_TEMPLATE, \
-    TABLE_TYPE_TEMPLATE, NODE_MAPPING_TEMPLATE, RELATIONSHIPS_MAPPING_TEMPLATE, TEXT_EXTRACTION_TEMPLATE
+    TABLE_TYPE_TEMPLATE, NODE_MAPPING_TEMPLATE, RELATIONSHIPS_MAPPING_TEMPLATE, TEXT_EXTRACTION_TEMPLATE, \
+    QUERY_TEMPLATE, AGG_QUERY_TEMPLATE, AGENT_SYSTEM_TEMPLATE
 from utils import read_csv_preview, read_csv, load_pdf
 
 
@@ -25,6 +29,7 @@ class GraphRAG:
             llm: The language model for handling inference, queries and response completions.
             embedding_model: text embedding model to use for data
         """
+        self.agent_executor = None
         self.db_client = db_client
         self.llm = llm
 
@@ -410,18 +415,176 @@ class GraphRAG:
             """
             print("[Data] Merging data from external database tables.")
             # Placeholder for database table merging logic
+    def get_search_configs_prompt(self) -> str:
+        search_args_prompt = ''
+        for node in self.schema.schema.nodes:
+            if node.searchFields:
+                if len(node.searchFields):
+                    for search_field in node.searchFields:
+                        search_type = "SEMANTIC" if search_field.type == "TEXT_EMBEDDING" else search_field.type
+                        additional_instruction = f"Additionally: {search_field.description}" if search_field.description and len(search_field.description) > 0 else ''
+                        desc = f"Searches {node.label} nodes on the {search_field.calculatedFrom} property using {search_type.lower()} search. {additional_instruction}"
+                        search_arg = {
+                            "search_type":search_type,
+                            "node_label":node.label,
+                            "search_prop":search_field.calculatedFrom
+                        }
+                        search_args_prompt+=str(search_arg) + ": " + desc + "\n"
+        return search_args_prompt if len(search_args_prompt) > 0 else 'Apologies no Search Fields Aviable yet.  Advise User and work with other tools.'
 
-    def agent(self, query: str):
+    def node_fulltext_search(self,
+                              search_query:str,
+                              node_label: str,
+                              search_prop:str,
+                              top_k=10) -> str:
+
+        index_name = f'fulltext_{node_label.lower()}_{search_prop}'
+        return_props = self.schema.schema.get_node_properties_by_label(node_label)
+        return_statement = ', '.join([f'n.`{p}` AS `{p}`' for p in return_props])
+        query = f'''
+        CALL db.index.fulltext.queryNodes("{index_name}", "{search_query}") YIELD node, score
+        WITH node AS node, score AS search_score
+        RETURN {return_statement}, search_score
+        ORDER BY search_score DESC LIMIT {top_k}
+        '''
+        res = self.db_client.execute_query(
+            query=query,
+            routing_=RoutingControl.READ,
+            result_transformer_ = lambda r: r.data()
+        )
+        return json.dumps(res, indent=4)
+
+    def node_embedding_search(self,
+                              search_query:str,
+                              node_label: str,
+                              search_prop:str,
+                              top_k=10) -> str:
+
+        index_name = f'vector_{node_label.lower()}_{search_prop}'
+        return_props = self.schema.schema.get_node_properties_by_label(node_label)
+        return_statement = ', '.join([f'n.`{p}` AS `{p}`' for p in return_props])
+        query_vector = self.data.embedding_model.embed_query(search_query)
+        query = f'''
+        CALL db.index.vector.queryNodes('{index_name}', {top_k}, $queryVector) YIELD node, score
+        WITH node AS node, score AS search_score
+        RETURN {return_statement}, search_score
+        ORDER BY search_score DESC LIMIT {top_k}
+        '''
+        res = self.db_client.execute_query(
+            query=query,
+            routing_=RoutingControl.READ,
+            result_transformer_ = lambda r: r.data(),
+            queryVector = query_vector
+        )
+        return json.dumps(res, indent=4)
+
+    def node_search(self, search_config:Dict[str,str], search_query:str, top_k=10):
         """
-        Answers a question or query about the knowledge graph,
-        optionally using an LLM for advanced question-answering tasks.
+        Performs a search operation on nodes using different modes such as full-text
+        or semantic searches. The method executes the search by delegating
+        operations to the respective helper functions based on the specified search
+        type.
 
-        Args:
-            query (str): The query to be executed.
+    Parameters:
+        search_config (Dict[str, str]): A dictionary specifying the configuration
+            for the search operation. It must contain the following keys:
+                - "search_type": Determines the type of search to perform, either
+                  "FULLTEXT" for full-text search or "SEMANTIC" for embedding-based
+                  search.
+                - "node_label": The label of the node to search within the graph.
+                - "search_prop": The property of the node to search against.
+
+        search_query (str): The query string used to perform the search
+
+        top_k (int): The maximum number of results to return. Defaults to 10.
+
+    Returns:
+        The results of the performed search operation, as provided by the
+        corresponding helper function.
+
+    Raises:
+        ValueError: If the provided search type is not recognized.
+    """
+
+        if search_config['search_type'] == "FULLTEXT":
+            return self.node_fulltext_search(search_query, search_config['node_label'], search_config['search_prop'], top_k)
+        elif search_config['search_type'] == "SEMANTIC":
+            return self.node_embedding_search(search_query, search_config['node_label'], search_config['search_prop'], top_k)
+        else:
+            raise ValueError(f"Invalid search type: {search_config['search_type']}")
+
+    def query(self, query_instructions:str) -> str:
+        """
+        Traverses a graph database based on specific instructions. The method formulates a traversal query
+        based on the given query instructions and executes it using a database client.
+        The results of the execution are transformed into JSON format and returned as a string.
+
+        Arguments:
+            query_instructions: A string containing detailed instructions for the query.
 
         Returns:
-            str: The result of the query or additional insights via the LLM.
+            str: The JSON formatted result of the executed query.
+
+        Raises:
+            KeyError: If a required key is missing during template invocation.
+            DatabaseExecutionError: If the query execution fails in the database.
         """
-        print(f"[Agent] Handling query: {query}")
-        return "Hi!!! - I am useless right now!"
+        prompt  = QUERY_TEMPLATE.invoke({'queryInstructions': query_instructions,
+                                         'graphSchema':self.schema.schema.prompt_str()})
+        query = self.llm.invoke(prompt).content
+        res = self.db_client.execute_query(
+            query=query,
+            routing_=RoutingControl.READ,
+            result_transformer_ = lambda r: r.data(),
+        )
+        return json.dumps(res, indent=4)
+
+    def aggregate(self, agg_instructions:str):
+        """
+        Aggregates data from a database based on specific instructions. The method formulates a query
+        based on the given aggregation instructions and executes it using a database client.
+        The results of the execution are transformed into JSON format and returned as a string.
+
+        Parameters:
+            agg_instructions (str): Instructions that detail how the data should be aggregated.
+                These instructions will be used to generate the query.
+
+        Returns:
+            str: A JSON-formatted string representation of the aggregated data based on the executed query.
+
+        Raises:
+            Any exceptions that may occur during query formulation or execution will propagate and are
+            not directly handled within this method.
+        """
+        prompt  = AGG_QUERY_TEMPLATE.invoke({'queryInstructions': agg_instructions,
+                                             'graphSchema':self.schema.schema.prompt_str()})
+        query = self.llm.invoke(prompt).content
+        res = self.db_client.execute_query(
+            query=query,
+            routing_=RoutingControl.READ,
+            result_transformer_ = lambda r: r.data(),
+        )
+        return json.dumps(res, indent=4)
+
+    def create_or_replace_agent(self):
+        tools = [self.node_search, self.query, self.aggregate]
+        self.agent_executor = create_react_agent(self.llm, tools)
+
+    def agent(self, question: str):
+        """
+        Answers a question using GraphRAG
+
+        Args:
+            question (str): The question to be executed.
+
+        """
+        if self.agent_executor:
+            self.create_or_replace_agent()
+        system_instruction = AGENT_SYSTEM_TEMPLATE.invoke({'searchConfigs':self.get_search_configs_prompt,
+                                                        'graphSchema':self.schema.schema.prompt_str()})
+        for step in self.agent_executor.stream(
+                {"messages": [SystemMessage(content=system_instruction), HumanMessage(content=question)]},
+                stream_mode="values",
+        ):
+            step["messages"][-1].pretty_print()
 

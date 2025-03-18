@@ -142,3 +142,11 @@ class GraphSchema(Element):
             f"'{start_node_label}-[{rel_type}]->{end_node_label}'"
         )
 
+    def get_node_properties(self, label:str) -> List[str] :
+        """
+        Gets the properties names from a node schema, including id name.
+        Useful for constructing returns in Cypher queries as it avoids search fields such as embeddings
+        """
+        node = self.get_node_schema_by_label(label)
+        return [node.id.name] + [p.name for p  in self.node.properties]
+
