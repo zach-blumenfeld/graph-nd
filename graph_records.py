@@ -39,6 +39,14 @@ class Relationship(BaseModel):
             "end_node_id": self.end_node_id,
             **(self.properties or {})
         }
+class SubGraphNodes(BaseModel):
+    """
+    Nodes to be merged into a knowledge graph.
+    """
+    nodes: List[Node] = Field(default_factory=list,
+                                              description="Nodes in the subgraph.")
+    def to_subgraph(self):
+        return SubGraph(nodes=self.nodes, relationships=[])
 
 class SubGraph(BaseModel):
     """
@@ -46,7 +54,7 @@ class SubGraph(BaseModel):
     """
     nodes: List[Node] = Field(default_factory=list,
                                               description="Nodes in the subgraph.")
-    relationships: List[Relationship] = Field(default_factory=list,
+    relationships: Optional[List[Relationship]] = Field(None,
                                               description="Relationships in the subgraph. Every relationship must have start and node ids that exist in nodes.")
 
     #TODO: it would be better if GraphSchema owned validation and these record/subgraph classes were refactored
@@ -94,6 +102,8 @@ class SubGraph(BaseModel):
         rel_triple_dfs = dict()
 
         # Create a map of relationship types (edges) to DataFrame-like structures
+        if not self.relationships:
+            self.relationships = []
         for relationship in self.relationships:
             rel_triple = (relationship.start_node_label, relationship.type, relationship.end_node_label)
             if rel_triple not in rel_type_flat_records:

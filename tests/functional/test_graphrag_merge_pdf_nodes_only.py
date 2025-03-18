@@ -11,7 +11,7 @@ from graph_schema import GraphSchema
 from graphrag import GraphRAG
 
 
-class TestMergePDFFunctional(unittest.TestCase):
+class TestMergePDFNodesFunctional(unittest.TestCase):
     DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 
     @classmethod
@@ -51,7 +51,7 @@ class TestMergePDFFunctional(unittest.TestCase):
         # Initialize GraphRAG
         cls.graphrag = GraphRAG(db_client=cls.db_client, llm=llm, embedding_model=embedding_model)
 
-    def test_load_pdf(self):
+    def test_load_pdf_only_nodes(self):
         """Test merging of CSV files and count unique nodes + relationships."""
 
 
@@ -68,7 +68,7 @@ class TestMergePDFFunctional(unittest.TestCase):
         self.assertEqual(len(self.graphrag.schema.schema.relationships), 2, "Expected two relationship types in the schema")
 
         # Call the merge_pdf method
-        self.graphrag.data.merge_pdf(file_path=self.pdf_file, nodes_only=False)
+        self.graphrag.data.merge_pdf(file_path=self.pdf_file, nodes_only=True)
 
         # count unique nodes should equal 79
         with self.db_client.session() as session:
@@ -85,6 +85,11 @@ class TestMergePDFFunctional(unittest.TestCase):
             # Query the number of unique relationships
             unique_relationship_count = session.run("MATCH ()-[r]->() RETURN count(r) AS relationship_count").single()[
                 "relationship_count"]
+
+        # Expected relationship count is the sum of rows in component-types.csv and component-input-output.csv
+        expected_relationship_count = 0
+        self.assertEqual(unique_relationship_count, expected_relationship_count,
+                          "Number of relationships does not match expected relationships")
 
     @classmethod
     def tearDownClass(cls):

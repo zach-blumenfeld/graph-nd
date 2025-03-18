@@ -10,11 +10,11 @@ from tqdm import tqdm
 
 from graph_data import NodeData, RelationshipData, GraphData
 from graph_schema import GraphSchema, NodeSchema
-from graph_records import SubGraph
+from graph_records import SubGraph, SubGraphNodes
 from table_mapping import TableTypeEnum, TableType, NodeTableMapping, RelTableMapping
 from prompt_templates import SCHEMA_FROM_DESC_TEMPLATE, SCHEMA_FROM_SAMPLE_TEMPLATE, SCHEMA_FROM_DICT_TEMPLATE, \
     TABLE_TYPE_TEMPLATE, NODE_MAPPING_TEMPLATE, RELATIONSHIPS_MAPPING_TEMPLATE, TEXT_EXTRACTION_TEMPLATE, \
-    QUERY_TEMPLATE, AGG_QUERY_TEMPLATE, AGENT_SYSTEM_TEMPLATE
+    QUERY_TEMPLATE, AGG_QUERY_TEMPLATE, AGENT_SYSTEM_TEMPLATE, TEXT_NODE_EXTRACTION_TEMPLATE
 from utils import read_csv_preview, read_csv, load_pdf
 
 
@@ -180,6 +180,7 @@ class GraphRAG:
                 graphrag: A reference to the outer `GraphRAG` instance.
                 db_client: The database client for managing the knowledge graph.
             """
+            self.llm_node_text_extractor = None
             self.embedding_model = None
             self.llm_rels_table_mapping = None
             self.llm_node_table_mapping = None
@@ -201,9 +202,15 @@ class GraphRAG:
                                                                      method="function_calling") if llm else None
             self.llm_text_extractor = llm.with_structured_output(SubGraph,
                                                                  method="function_calling") if llm else None
+            self.llm_node_text_extractor = llm.with_structured_output(SubGraphNodes,
+                                                                 method="function_calling") if llm else None
 
         def _validate_llms(self):
-            if any(attr is None for attr in [self.llm_table_type, self.llm_node_table_mapping, self.llm_rels_table_mapping]):
+            if any(attr is None for attr in [self.llm_table_type,
+                                             self.llm_node_table_mapping,
+                                             self.llm_rels_table_mapping,
+                                             self.llm_text_extractor,
+                                             self.llm_node_text_extractor,]):
                 raise ValueError("[Data] LLM is not set. Please set the LLM before calling this method.")
 
         def merge_nodes(self, label:str, records: List[Dict]):
@@ -379,21 +386,50 @@ class GraphRAG:
             for file_path in file_paths:
                 self.merge_csv(file_path)
 
+        def extract_nodes_from_text(self, file_path, text) -> GraphData:
+            prompt = TEXT_NODE_EXTRACTION_TEMPLATE.invoke({'fileName': os.path.basename(file_path),
+                                                      'text': text,
+                                                      'graphSchema': self.graphrag.schema.schema.nodes_only_prompt_str()})
+            # pprint(prompt.text)
+            # Use structured LLM for extraction
+            extracted_nodes: SubGraphNodes = self.llm_node_text_extractor.invoke(prompt)
+            graph_data = extracted_nodes.to_subgraph().convert_to_graph_data(self.graphrag.schema.schema)
+            return graph_data
 
-        def merge_pdf(self, file_path: str, chunk_strategy="BY_PAGE", chunk_size=20):
+        def extract_nodes_and_rels_from_text(self, file_path, text) -> GraphData:
+            prompt = TEXT_EXTRACTION_TEMPLATE.invoke({'fileName': os.path.basename(file_path),
+                                                      'text': text,
+                                                      'graphSchema': self.graphrag.schema.schema.prompt_str()})
+            # pprint(prompt.text)
+            # Use structured LLM for extraction
+            extracted_subgraph: SubGraph = self.llm_text_extractor.invoke(prompt)
+            graph_data:GraphData = extracted_subgraph.convert_to_graph_data(self.graphrag.schema.schema)
+            return graph_data
+
+        def merge_pdf(self, file_path: str, chunk_strategy="BY_PAGE", chunk_size=20, nodes_only=True):
             """
-            Merges data from a pdf file into the knowledge graph.
+            Merges data from a PDF file into a graph database by extracting structured graph-based entities
+            through the use of a Large Language Model (LLM) textual extractor. The method processes the PDF
+            in chunks, validates necessary components, and performs merging actions for nodes and relationships.
+
+            Arguments:
+                file_path (str): The file path of the PDF document that needs to be processed.
+                chunk_strategy (str, optional): The strategy for splitting text into chunks. Default is "BY_PAGE".
+                chunk_size (int, optional): The size of the chunks for text splitting based on the strategy.
+                    Default is 20.
+                nodes_only (bool, optional): If True, processes only nodes and not relationships.
+                    Default is True.
+
+            Raises:
+                ValueError: If the file_path is invalid, empty, or not a supported PDF file.
+                RuntimeError: If the LLM validation fails or if any processing error occurs during text
+                    extraction or graph merging.
             """
             texts = load_pdf(file_path=file_path, chunk_strategy=chunk_strategy, chunk_size=chunk_size)
             self._validate_llms()
             for text in tqdm(texts, desc="Extracting entities from PDF"):
-                prompt = TEXT_EXTRACTION_TEMPLATE.invoke({'fileName': os.path.basename(file_path),
-                                                     'text': text,
-                                                     'graphSchema':self.graphrag.schema.schema.prompt_str()})
-                #pprint(prompt.text)
-                # Use structured LLM for extraction
-                extracted_subgraph: SubGraph = self.llm_text_extractor.invoke(prompt)
-                graph_data = extracted_subgraph.convert_to_graph_data(self.graphrag.schema.schema)
+                graph_data = self.extract_nodes_from_text(file_path, text) if nodes_only \
+                    else self.extract_nodes_and_rels_from_text(file_path, text)
                 # merge nodes
                 for node_data in graph_data.nodeDatas:
                     node_data.merge(self.db_client, embedding_model=self.embedding_model)
@@ -460,7 +496,7 @@ class GraphRAG:
                               search_prop:str,
                               top_k=10) -> str:
 
-        index_name = f'vector_{node_label.lower()}_{search_prop}'
+        index_name = f'vector_{node_label.lower()}_{self.schema.schema.get_node_search_field_name(search_prop)}'
         return_props = self.schema.schema.get_node_properties_by_label(node_label)
         return_statement = ', '.join([f'n.`{p}` AS `{p}`' for p in return_props])
         query_vector = self.data.embedding_model.embed_query(search_query)

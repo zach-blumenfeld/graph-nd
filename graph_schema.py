@@ -95,6 +95,9 @@ class GraphSchema(Element):
 
         return base_dict
 
+    def nodes_only_prompt_str(self, **kwargs) -> str:
+        return json.dumps({"nodes": [node.model_dump(**kwargs) for node in self.nodes]}, indent=4)
+
     def prompt_str(self, **kwargs) -> str:
         return json.dumps(self.query_model_dump(**kwargs), indent=4)
 
@@ -150,3 +153,9 @@ class GraphSchema(Element):
         node = self.get_node_schema_by_label(label)
         return [node.id.name] + [p.name for p  in self.node.properties]
 
+    def get_node_search_field_name(self, label:str, property:str):
+        node = self.get_node_schema_by_label(label)
+        for search_field in node.searchFields:
+            if search_field.calculatedFrom == property:
+                return search_field.name
+        raise ValueError(f"No search field found for property {property} in node {label}")

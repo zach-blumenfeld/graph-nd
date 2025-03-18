@@ -81,6 +81,22 @@ This data will be merged into a knowledge graph to support downstream search and
 {graphSchema}
 ''')
 
+
+TEXT_NODE_EXTRACTION_TEMPLATE = PromptTemplate.from_template('''
+Extract nodes and their properties where applicable from the textChunk according to the graphSchema. 
+This data will be merged into a knowledge graph to support downstream search and analytics. As such:
+- You must strictly adhere to the schema
+- to find data to populate node ids, use the graph schema to find the node id names in the text.
+- You may find that not all nodes are present in the graph schema.  That is okay. 
+
+## TextChunk From File {fileName}
+{text}
+
+## GraphSchema
+{graphSchema}
+''')
+
+
 QUERY_TEMPLATE = PromptTemplate.from_template("""
 Task: Generate a Cypher statement for traversing a Neo4j graph database from a user input. 
 - Do not include triple backticks ``` or ```cypher or any additional text except the generated Cypher statement in your response.

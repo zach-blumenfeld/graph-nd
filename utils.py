@@ -44,8 +44,6 @@ def format_table_as_markdown_preview(headers, rows, truncate_length=30, max_rows
 
     return table.strip()
 
-
-
 def read_csv_preview(file_path, truncate_length=30, max_rows=5):
     """
     Reads the header and first few rows of a CSV file, truncating cell contents as needed.
@@ -90,7 +88,6 @@ def read_csv(file_path):
         reader = csv.DictReader(csv_file)
         records = [row for row in reader]
     return records
-
 
 def load_pdf(file_path: str, chunk_strategy="BY_PAGE", chunk_size=20) -> List[str]:
     """

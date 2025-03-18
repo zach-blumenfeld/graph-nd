@@ -234,8 +234,8 @@ class RelationshipData(BaseModel):
             skip_set_props.append(self.rel_schema.id.name)
 
         template = f'''\tUNWIND $recs AS rec
-        MATCH(s:{self.start_node_schema.label} {{{self.start_node_schema.id.name}: rec.start_node_id}})
-        MATCH(t:{self.end_node_schema.label} {{{self.end_node_schema.id.name}: rec.end_node_id}})\n\t''' + merge_statement
+        MERGE(s:{self.start_node_schema.label} {{{self.start_node_schema.id.name}: rec.start_node_id}})
+        MERGE(t:{self.end_node_schema.label} {{{self.end_node_schema.id.name}: rec.end_node_id}})\n\t''' + merge_statement
 
         # get property names from records and check for consistency
         prop_names = validate_property_names(self.records)
