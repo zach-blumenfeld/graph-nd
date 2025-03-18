@@ -103,6 +103,8 @@ Task: Generate a Cypher statement for traversing a Neo4j graph database from a u
 - Do not use any properties or relationships not included in the graphSchema.
 - Use the queryPatterns in the graphSchema to guide your query constructions.
 - Ignore the searchFields in the graphSchema.
+- Do not return embedding properties.
+- you may be asked to traverse variable lengths on a specific relationship (i.e. recursively) the syntax for the MATCH statement is MATCH(<yourStartNode>)(()-[:<YOUR_REL_TYPE>]->()){{1,<numberOFHopsYouWIllTolerate>}}(<yourEndNode>) where you fill in <> with your inputs
 
 ## graphSchema
 {graphSchema}
@@ -121,6 +123,7 @@ Task: Generate a Cypher statement for aggregating information in a Neo4j graph d
 - Do not use any properties or relationships not included in the graphSchema.
 - Use the queryPatterns in the graphSchema to guide your query constructions.
 - Ignore the searchFields in the graphSchema.
+- Do not return embedding properties.
 
 ## graphSchema
 {graphSchema}
@@ -155,25 +158,6 @@ search_config options:
 For query and aggregation tools, you will provide the tools with a description of the query you want to run.  Make sure to include any relevant node id(s) for that. 
 
 ## graphSchema for reference
-{graphSchema}
-
-## User Inquiry
-
-
-
-
-User Inquiry:
-Extract nodes, relationships and their properties where applicable from the textChunk according to the graphSchema. 
-This data will be merged into a knowledge graph to support downstream search and analytics. As such:
-- You must strictly adhere to the schema
-- to find data to populate node ids, use the graph schema to find the node id names in the text.
-- every relationship requires start and end ids, do not provide relationships with start and end ids that don't correspond to existing nodes you extracted
-- You may find that not all nodes or relationship types are present in the graph schema.  That is okay. 
-
-## TextChunk From File {fileName}
-{text}
-
-## GraphSchema
 {graphSchema}
 ''')
 

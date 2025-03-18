@@ -137,3 +137,29 @@ def load_pdf(file_path: str, chunk_strategy="BY_PAGE", chunk_size=20) -> List[st
         return chunks
     except Exception as e:
         raise RuntimeError(f"An error occurred while reading the PDF: {e}")
+
+def remove_key_recursive(data, key_to_remove):
+    """
+    Recursively searches a dictionary or a list of dictionaries and removes all instances
+    of the specified key.
+
+    Parameters:
+        data (dict | list): The dictionary or list of dictionaries to search.
+        key_to_remove (str): The key to remove wherever it exists.
+
+    Returns:
+        None: The function modifies the input data in place.
+    """
+    if isinstance(data, dict):
+        # Check if the key exists at the current level and remove it
+        if key_to_remove in data:
+            del data[key_to_remove]
+        # Recursively check nested dictionaries
+        for key, value in data.items():
+            if isinstance(value, (dict, list)):
+                remove_key_recursive(value, key_to_remove)
+    elif isinstance(data, list):
+        # Iterate through the list and apply the same operation to each element
+        for item in data:
+            if isinstance(item, (dict, list)):
+                remove_key_recursive(item, key_to_remove)

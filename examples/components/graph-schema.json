@@ -1,0 +1,80 @@
+{
+    "description": "A simple graph schema for hardware components and their relationships.",
+    "nodes": [
+        {
+            "description": "Represents a hardware component.",
+            "id": {
+                "description": "",
+                "name": "id",
+                "type": "STRING"
+            },
+            "label": "Component",
+            "properties": [
+                {
+                    "description": "",
+                    "name": "name",
+                    "type": "STRING"
+                },
+                {
+                    "description": "",
+                    "name": "description",
+                    "type": "STRING"
+                }
+            ],
+            "searchFields": [
+                {
+                    "description": "A text embedding for semantic search on the component name.",
+                    "name": "name_textembedding",
+                    "type": "TEXT_EMBEDDING",
+                    "calculatedFrom": "name"
+                },
+                {
+                    "description": "A text embedding for semantic search on the component description.",
+                    "name": "description_textembedding",
+                    "type": "TEXT_EMBEDDING",
+                    "calculatedFrom": "description"
+                }
+            ]
+        }
+    ],
+    "relationships": [
+        {
+            "description": "",
+            "id": null,
+            "type": "TYPE_OF",
+            "queryPatterns": [
+                {
+                    "description": "(component1)-[:TYPE_OF]->(component2). Component1 is a type of component2.",
+                    "startNode": "Component",
+                    "endNode": "Component"
+                }
+            ],
+            "properties": [
+                {
+                    "description": "",
+                    "name": "relationDescription",
+                    "type": "STRING"
+                }
+            ]
+        },
+        {
+            "description": "",
+            "id": null,
+            "type": "INPUT_TO",
+            "queryPatterns": [
+                {
+                    "description": "(component1)-[:INPUT_TO]->(component2). Component1 is an input to component2.",
+                    "startNode": "Component",
+                    "endNode": "Component"
+                }
+            ],
+            "properties": [
+                {
+                    "description": "",
+                    "name": "relationDescription",
+                    "type": "STRING"
+                }
+            ]
+        }
+    ]
+}

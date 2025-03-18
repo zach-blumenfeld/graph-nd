@@ -151,11 +151,19 @@ class GraphSchema(Element):
         Useful for constructing returns in Cypher queries as it avoids search fields such as embeddings
         """
         node = self.get_node_schema_by_label(label)
-        return [node.id.name] + [p.name for p  in self.node.properties]
+        return [node.id.name] + [p.name for p  in node.properties]
 
-    def get_node_search_field_name(self, label:str, property:str):
+    def get_node_search_field_name(self, label:str, prop:str):
         node = self.get_node_schema_by_label(label)
         for search_field in node.searchFields:
-            if search_field.calculatedFrom == property:
+            if search_field.calculatedFrom == prop:
                 return search_field.name
-        raise ValueError(f"No search field found for property {property} in node {label}")
+        raise ValueError(f"No search field found for property {prop} in node {label}")
+
+    def get_all_text_embedding_names(self) -> List[str]:
+        res = []
+        for node in self.nodes:
+            for search_field in node.searchFields:
+                if search_field.type == "TEXT_EMBEDDING":
+                    res.append(search_field.name)
+        return res

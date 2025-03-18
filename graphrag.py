@@ -15,7 +15,7 @@ from table_mapping import TableTypeEnum, TableType, NodeTableMapping, RelTableMa
 from prompt_templates import SCHEMA_FROM_DESC_TEMPLATE, SCHEMA_FROM_SAMPLE_TEMPLATE, SCHEMA_FROM_DICT_TEMPLATE, \
     TABLE_TYPE_TEMPLATE, NODE_MAPPING_TEMPLATE, RELATIONSHIPS_MAPPING_TEMPLATE, TEXT_EXTRACTION_TEMPLATE, \
     QUERY_TEMPLATE, AGG_QUERY_TEMPLATE, AGENT_SYSTEM_TEMPLATE, TEXT_NODE_EXTRACTION_TEMPLATE
-from utils import read_csv_preview, read_csv, load_pdf
+from utils import read_csv_preview, read_csv, load_pdf, remove_key_recursive
 
 
 class GraphRAG:
@@ -475,16 +475,16 @@ class GraphRAG:
                               top_k=10) -> str:
 
         index_name = f'fulltext_{node_label.lower()}_{search_prop}'
-        return_props = self.schema.schema.get_node_properties_by_label(node_label)
-        return_statement = ', '.join([f'n.`{p}` AS `{p}`' for p in return_props])
+        return_props = self.schema.schema.get_node_properties(node_label)
+        return_statement = ', '.join([f'node.`{p}` AS `{p}`' for p in return_props])
         query = f'''
         CALL db.index.fulltext.queryNodes("{index_name}", "{search_query}") YIELD node, score
-        WITH node AS node, score AS search_score
+        WITH node, score AS search_score
         RETURN {return_statement}, search_score
         ORDER BY search_score DESC LIMIT {top_k}
         '''
         res = self.db_client.execute_query(
-            query=query,
+            query_=query,
             routing_=RoutingControl.READ,
             result_transformer_ = lambda r: r.data()
         )
@@ -496,18 +496,18 @@ class GraphRAG:
                               search_prop:str,
                               top_k=10) -> str:
 
-        index_name = f'vector_{node_label.lower()}_{self.schema.schema.get_node_search_field_name(search_prop)}'
-        return_props = self.schema.schema.get_node_properties_by_label(node_label)
-        return_statement = ', '.join([f'n.`{p}` AS `{p}`' for p in return_props])
+        index_name = f'vector_{node_label.lower()}_{self.schema.schema.get_node_search_field_name(node_label, search_prop)}'
+        return_props = self.schema.schema.get_node_properties(node_label)
+        return_statement = ', '.join([f'node.`{p}` AS `{p}`' for p in return_props])
         query_vector = self.data.embedding_model.embed_query(search_query)
         query = f'''
         CALL db.index.vector.queryNodes('{index_name}', {top_k}, $queryVector) YIELD node, score
-        WITH node AS node, score AS search_score
+        WITH node, score AS search_score
         RETURN {return_statement}, search_score
         ORDER BY search_score DESC LIMIT {top_k}
         '''
         res = self.db_client.execute_query(
-            query=query,
+            query_=query,
             routing_=RoutingControl.READ,
             result_transformer_ = lambda r: r.data(),
             queryVector = query_vector
@@ -537,9 +537,6 @@ class GraphRAG:
     Returns:
         The results of the performed search operation, as provided by the
         corresponding helper function.
-
-    Raises:
-        ValueError: If the provided search type is not recognized.
     """
 
         if search_config['search_type'] == "FULLTEXT":
@@ -568,11 +565,17 @@ class GraphRAG:
         prompt  = QUERY_TEMPLATE.invoke({'queryInstructions': query_instructions,
                                          'graphSchema':self.schema.schema.prompt_str()})
         query = self.llm.invoke(prompt).content
+        print(f'Running Query:\n{query}')
         res = self.db_client.execute_query(
-            query=query,
+            query_=query,
             routing_=RoutingControl.READ,
             result_transformer_ = lambda r: r.data(),
         )
+
+        #remove embeddings as this can blow context window and makes thing hard to read
+        for embedding in self.schema.schema.get_all_text_embedding_names():
+            remove_key_recursive(res, embedding)
+        #turn into formated string and return
         return json.dumps(res, indent=4)
 
     def aggregate(self, agg_instructions:str):
@@ -595,11 +598,16 @@ class GraphRAG:
         prompt  = AGG_QUERY_TEMPLATE.invoke({'queryInstructions': agg_instructions,
                                              'graphSchema':self.schema.schema.prompt_str()})
         query = self.llm.invoke(prompt).content
+        print(f'Running Query:\n{query}')
         res = self.db_client.execute_query(
-            query=query,
+            query_=query,
             routing_=RoutingControl.READ,
             result_transformer_ = lambda r: r.data(),
         )
+        #remove embeddings as this can blow context window and makes thing hard to read
+        for embedding in self.schema.schema.get_all_text_embedding_names():
+            remove_key_recursive(res, embedding)
+        #turn into formated string and return
         return json.dumps(res, indent=4)
 
     def create_or_replace_agent(self):
@@ -614,10 +622,11 @@ class GraphRAG:
             question (str): The question to be executed.
 
         """
-        if self.agent_executor:
+        if not self.agent_executor:
             self.create_or_replace_agent()
-        system_instruction = AGENT_SYSTEM_TEMPLATE.invoke({'searchConfigs':self.get_search_configs_prompt,
-                                                        'graphSchema':self.schema.schema.prompt_str()})
+        system_instruction = AGENT_SYSTEM_TEMPLATE.invoke({'searchConfigs':self.get_search_configs_prompt(),
+                                                        'graphSchema':self.schema.schema.prompt_str()}).to_string()
+        print(system_instruction)
         for step in self.agent_executor.stream(
                 {"messages": [SystemMessage(content=system_instruction), HumanMessage(content=question)]},
                 stream_mode="values",
