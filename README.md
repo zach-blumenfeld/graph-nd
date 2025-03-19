@@ -3,7 +3,7 @@
 Graph-ND (short for **Graph, Not Documents**) is a Python project for building powerful end-to-end [**GraphRAG**](https://neo4j.com/blog/genai/what-is-graphrag) systems with a simple, intuitive API. 
 
 
-__Example Usage__: Data sources to agentic GraphRAG in three steps:
+__Example Usage__: From data sources to agentic GraphRAG in 3 steps:
 
  ```python
 # Instantiate graphrag
