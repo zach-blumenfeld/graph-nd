@@ -118,7 +118,7 @@ graphrag.agent("What components have the most inputs?")
    NEO4J_USERNAME=<your_neo4j_username>
    NEO4J_PASSWORD=<your_neo4j_password>
    
-   OPEN_AI_API_KEY = ... # or subistute your preffered LLM/Embedding
+   OPEN_AI_API_KEY = ... # or subistute your preffered LLM/Embedding provider(s)
 ```
 Run provided examples or scripts in the `examples/` directory
 
