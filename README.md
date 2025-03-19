@@ -1,10 +1,9 @@
 # **Graph-ND**
-**Knowledge in Graphs, Not Documents!**
 
 Graph-ND (short for **Graph, Not Documents**) is a Python project for building powerful end-to-end [**GraphRAG**](https://neo4j.com/blog/genai/what-is-graphrag) systems with a simple, intuitive API. 
 
 
-__Example Usage__: from data sources to agentic GraphRAG in three steps:
+__Example Usage__: Data sources to agentic GraphRAG in three steps:
 
  ```python
 # Instantiate graphrag
@@ -22,31 +21,25 @@ graphrag.data.merge_pdf('component-catalog.pdf')
 # 3) GraphRAG agent for better answers.
 graphrag.agent("what sequence of components depend on silicon wafers?")
 
-""" Output: semantic search + graph traversal
-
+""" Output:
 ================================ Human Message =================================
-
 what sequence of components depend on silicon wafers?
 ================================== Ai Message ==================================
 Tool Calls:
   node_search (call_mhh8tLl0WbvwXxEyrS7zBxKN)
- Call ID: call_mhh8tLl0WbvwXxEyrS7zBxKN
   Args:
     search_query: silicon wafers
     top_k: 5
     search_config: {'search_type': 'SEMANTIC', 'node_label': 'Component', 'search_prop': 'name'}
 ================================= Tool Message =================================
 Name: node_search
-
-[
-    {
+[   {  
         "id": "N26",
         "name": "Wafer",
         "description": "Silicon wafers are the basic building block....
 ================================== Ai Message ==================================
 Tool Calls:
   query (call_jirfr5ZDmKTL2TQRp7xx1VYJ)
- Call ID: call_jirfr5ZDmKTL2TQRp7xx1VYJ
   Args:
     query_instructions: Find the sequence of components that depend on the component with id 'N26' (Silicon Wafer) through 'INPUT_TO' relationships. Return the sequence of component names.
 Running Query:
@@ -54,18 +47,12 @@ MATCH (start:Component {id: 'N26'})-[:INPUT_TO*]->(end:Component)
 RETURN end.name AS componentName
 ================================= Tool Message =================================
 Name: query
-
-[
-    {
-        "componentName": "Deposition"
-    },
-    {
-        "componentName": "Photolithography"
-    }, ...
+[   
+    {"componentName": "Deposition"},
+    {"componentName": "Photolithography"}, 
+    ...
 ================================== Ai Message ==================================
-
 The sequence of components that depend on silicon wafers is as follows:
-
 1. Deposition
 2. Photolithography
 3. Etch and clean
