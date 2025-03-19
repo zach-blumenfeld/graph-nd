@@ -82,7 +82,7 @@ llm = ChatOpenAI(model="gpt-4o", temperature=0.0)  # Language model
 
 graphrag = GraphRAG(db_client, llm, embedding_model)
 ```
-1. **Get the Graph Schema**: When experimenting you can define the desired graph structure using natural language and `GraphRAG` will infer the schema automatically. When you need more precision you can use the `schema.define` method to specify the schema exactly via the Pydantic `GraphSchema` class. You can also `.export` & `.load` the schema to/from json files allowing you to iterate and version control the schema. 
+1. **Get the Graph Schema**: When experimenting, you can define the desired graph structure using natural language and `GraphRAG` will infer the schema automatically. When you need more precision, you can use the `schema.define` method to specify the schema exactly passing a Pydantic `GraphSchema` object. You can also `.export` & `.load` the schema to/from json files allowing you to iterate and version control the schema. 
 
 ``` python
 graphrag.schema.infer("""
@@ -90,7 +90,7 @@ graphrag.schema.infer("""
    (with id, name, and description properties) can be types of or inputs to other components.
    """)
 ```
-2. **Merge Data into the Graph**: Merge both structured (e.g., CSV) and unstructured (e.g., PDFs) data. The `data.merg_csvs`, `data.merg_pdf` and `data.merg_text` methods use LLMs to automatically map data to your graph following the graph schema. For cases where you need to control the mapping yourself (instead of relying on the LLM in GraphRAG), you can format your own node and relationship dict records and merge directly via the `data.merge_nodes` and `data.merge_relationships` methods. 
+2. **Merge Data into the Graph**: Merge both structured (e.g., CSV) and unstructured (e.g., PDFs) data. The `data.merge_csvs`, `data.merge_pdf` and `data.merge_text` methods use LLMs to automatically map data to your graph following the graph schema. For cases where you need to control the mapping yourself (instead of relying on the LLM in GraphRAG), you can format your own node and relationship dict records and merge directly via the `data.merge_nodes` and `data.merge_relationships` methods. 
 ``` python
 graphrag.data.merge_csvs(['component-types.csv', 'component-input-output.csv'])  # Structured data
 graphrag.data.merge_pdf('component-catalog.pdf')  # Unstructured data
@@ -120,7 +120,7 @@ graphrag.agent("What components have the most inputs?")
    
    OPEN_AI_API_KEY = ... # or subistute your preffered LLM/Embedding
 ```
-5Run one of the provided examples or scripts in the `examples/` directory
+Run provided examples or scripts in the `examples/` directory
 
 ## **Feedback & Contributions**
 Feedback and ideas are welcome! Join the development conversation or raise issues for improvements. Let’s make GraphRAG accessible to everyone!
