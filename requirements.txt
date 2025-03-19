@@ -1,0 +1,10 @@
+neo4j 
+langchain-core
+langchain-openai 
+langgraph 
+pandas
+python-dotenv 
+PyPDF2 
+tqdm
+PyYAML
+pydantic

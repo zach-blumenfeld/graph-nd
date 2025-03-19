@@ -163,6 +163,9 @@ class GraphRAG:
                 print(f"[Schema] Error loading schema from {file_path}: {e}")
                 raise
 
+        def prompt_str(self):
+            return self.schema.prompt_str()
+
     class Data:
         """
         Data management for the knowledge graph.
