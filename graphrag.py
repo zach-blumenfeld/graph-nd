@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 from pprint import pprint
@@ -7,6 +8,8 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.prebuilt import create_react_agent
 from neo4j import RoutingControl
 from tqdm import tqdm
+from tqdm.asyncio import tqdm as tqdm_async
+
 
 from graph_data import NodeData, RelationshipData, GraphData
 from graph_schema import GraphSchema, NodeSchema
@@ -15,7 +18,8 @@ from table_mapping import TableTypeEnum, TableType, NodeTableMapping, RelTableMa
 from prompt_templates import SCHEMA_FROM_DESC_TEMPLATE, SCHEMA_FROM_SAMPLE_TEMPLATE, SCHEMA_FROM_DICT_TEMPLATE, \
     TABLE_TYPE_TEMPLATE, NODE_MAPPING_TEMPLATE, RELATIONSHIPS_MAPPING_TEMPLATE, TEXT_EXTRACTION_TEMPLATE, \
     QUERY_TEMPLATE, AGG_QUERY_TEMPLATE, AGENT_SYSTEM_TEMPLATE, TEXT_NODE_EXTRACTION_TEMPLATE
-from utils import read_csv_preview, read_csv, load_pdf, remove_key_recursive
+from utils import read_csv_preview, read_csv, load_pdf, remove_key_recursive, run_async_function
+import nest_asyncio
 
 
 class GraphRAG:
@@ -386,27 +390,64 @@ class GraphRAG:
             for file_path in file_paths:
                 self.merge_csv(file_path)
 
-        def extract_nodes_from_text(self, file_path, text) -> GraphData:
+        async def extract_nodes_from_text(self, file_path, text) -> GraphData:
             prompt = TEXT_NODE_EXTRACTION_TEMPLATE.invoke({'fileName': os.path.basename(file_path),
                                                       'text': text,
                                                       'graphSchema': self.graphrag.schema.schema.nodes_only_prompt_str()})
             # pprint(prompt.text)
             # Use structured LLM for extraction
-            extracted_nodes: SubGraphNodes = self.llm_node_text_extractor.invoke(prompt)
+            extracted_nodes: SubGraphNodes = await self.llm_node_text_extractor.ainvoke(prompt)
             graph_data = extracted_nodes.to_subgraph().convert_to_graph_data(self.graphrag.schema.schema)
             return graph_data
 
-        def extract_nodes_and_rels_from_text(self, file_path, text) -> GraphData:
-            prompt = TEXT_EXTRACTION_TEMPLATE.invoke({'fileName': os.path.basename(file_path),
+        async def extract_nodes_and_rels_from_text(self, file_path, text) -> GraphData:
+            prompt = TEXT_EXTRACTION_TEMPLATE.ainvoke({'fileName': os.path.basename(file_path),
                                                       'text': text,
                                                       'graphSchema': self.graphrag.schema.schema.prompt_str()})
             # pprint(prompt.text)
             # Use structured LLM for extraction
-            extracted_subgraph: SubGraph = self.llm_text_extractor.invoke(prompt)
+            extracted_subgraph: SubGraph = await self.llm_text_extractor.invoke(prompt)
             graph_data:GraphData = extracted_subgraph.convert_to_graph_data(self.graphrag.schema.schema)
             return graph_data
 
-        def merge_pdf(self, file_path: str, chunk_strategy="BY_PAGE", chunk_size=20, nodes_only=True):
+        async def extract_from_text_async(self, text, semaphore, source_name: str, nodes_only=True) -> GraphData:
+            async with semaphore:
+                graph_data = await self.extract_nodes_from_text(source_name, text) if nodes_only \
+                    else self.extract_nodes_and_rels_from_text(source_name, text)
+                return graph_data
+
+
+        async def extract_from_texts_async(self, texts: List[str], source_name: str, nodes_only=True, max_workers=10) -> List[GraphData]:
+            self._validate_llms()
+            # Create a semaphore with the desired number of workers
+            semaphore = asyncio.Semaphore(max_workers)
+
+            # Create tasks with the semaphore
+            tasks = [self.extract_from_text_async(text, semaphore, source_name, nodes_only) for text in texts]
+
+            # Explicitly update progress using `tqdm` as tasks complete
+            results = []
+            with tqdm_async(total=len(tasks), desc="Extracting entities from text") as pbar:
+                for future in asyncio.as_completed(tasks):
+                    result = await future
+                    results.append(result)
+                    pbar.update(1)  # Increment progress bar for each completed task
+            return results
+
+        def extract_from_texts(self, texts: List[str], source_name: str, nodes_only=True, max_workers=10) -> List[GraphData]:
+            return run_async_function(self.extract_from_texts_async, texts, source_name, nodes_only, max_workers)
+
+        def merge_texts(self, texts: List[str], source_name: str, nodes_only=True, max_workers=10):
+            graph_datas = self.extract_from_texts(texts, source_name, nodes_only, max_workers)
+            for graph_data in tqdm(graph_datas, desc="Merging entities from text"):
+                # merge nodes
+                for node_data in graph_data.nodeDatas:
+                    node_data.merge(self.db_client, embedding_model=self.embedding_model)
+                # merge relationships
+                for rels_data in graph_data.relationshipDatas:
+                    rels_data.merge(self.db_client)
+
+        def merge_pdf(self, file_path: str, chunk_strategy="BY_PAGE", chunk_size=10, nodes_only=True, max_workers=10):
             """
             Merges data from a PDF file into a graph database by extracting structured graph-based entities
             through the use of a Large Language Model (LLM) textual extractor. The method processes the PDF
@@ -419,6 +460,8 @@ class GraphRAG:
                     Default is 20.
                 nodes_only (bool, optional): If True, processes only nodes and not relationships.
                     Default is True.
+                max_workers (int, optional): The maximum number of workers for parallel processing.
+                    Default is 10.
 
             Raises:
                 ValueError: If the file_path is invalid, empty, or not a supported PDF file.
@@ -427,17 +470,50 @@ class GraphRAG:
             """
             print(f"[Data] Merging data from document: {file_path}")
             texts = load_pdf(file_path=file_path, chunk_strategy=chunk_strategy, chunk_size=chunk_size)
-            self._validate_llms()
-            for text in tqdm(texts, desc="Extracting entities from PDF"):
-                graph_data = self.extract_nodes_from_text(file_path, text) if nodes_only \
-                    else self.extract_nodes_and_rels_from_text(file_path, text)
-                # merge nodes
-                for node_data in graph_data.nodeDatas:
-                    node_data.merge(self.db_client, embedding_model=self.embedding_model)
-                # merge relationships
-                for rels_data in graph_data.relationshipDatas:
-                    rels_data.merge(self.db_client)
-            # Placeholder: Implement actual document parsing and merging logic
+            self.merge_texts(texts, file_path, nodes_only, max_workers)
+
+        def nuke(self, delete_chunk_size=10_000, skip_confirmation=False):
+            """
+            Deletes all nodes, relationships, constraints, and search indexes from
+            the database in a batch-wise manner. This method ensures
+            efficient cleanup and resets the database to a blank state.
+
+            Parameters
+            ----------
+            delete_chunk_size : int, optional
+                Number of rows to process per transaction during deletion, by default 10,000.
+            skip_confirmation : bool, optional
+                If True, skips the confirmation prompt, by default False.
+            """
+            if not skip_confirmation:
+                confirmation = input("[WARNING] This action will permanently delete all graph data and indexes in the "
+                                     "database. Are you sure you want to proceed? (yes/no): ")
+                if confirmation.lower() != 'yes':
+                    print("[Nuke] Operation aborted by the user.")
+                    return
+
+            with self.db_client.session() as session:
+                # Delete all nodes and relationships
+                session.run(f'''
+                MATCH (n)
+                CALL (n){{
+                  DETACH DELETE n
+                }} IN TRANSACTIONS OF {delete_chunk_size} ROWS;
+                ''')
+
+                # Drop constraints
+                session.run("CALL apoc.schema.assert({},{},true) YIELD label, key RETURN *")
+
+                # Retrieve and drop search indexes
+                result = session.run("""
+                    SHOW INDEXES YIELD name, type
+                    WHERE type IN ["FULLTEXT", "VECTOR"]
+                    RETURN name
+                """)
+                for record in result:
+                    index_name = record["name"]
+                    session.run(f"DROP INDEX {index_name} IF EXISTS")
+
 
     def get_search_configs_prompt(self) -> str:
         search_args_prompt = ''
