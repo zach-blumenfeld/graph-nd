@@ -1,3 +1,4 @@
+import asyncio
 import csv
 from typing import List
 
@@ -163,3 +164,31 @@ def remove_key_recursive(data, key_to_remove):
         for item in data:
             if isinstance(item, (dict, list)):
                 remove_key_recursive(item, key_to_remove)
+
+def run_async_function(func, *args, **kwargs):
+    """Runs an async function in a way that's safe for both scripts and Jupyter notebooks."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        import nest_asyncio
+
+        nest_asyncio.apply()
+
+        if not asyncio.iscoroutinefunction(func):
+            raise TypeError(f"The provided function `{func.__name__}` is not asynchronous.")
+
+        # Simplify: Get coroutine directly
+        coro = func(*args, **kwargs)
+        #print(f"Direct coroutine: {coro}, type: {type(coro)}")
+
+        # Run the coroutine in the current loop
+        result = loop.run_until_complete(coro)
+        #print(f"Result of coroutine: {result}")
+        return result
+
+    else:
+        # If not in an event loop, use asyncio.run()
+        return asyncio.run(func(*args, **kwargs))
