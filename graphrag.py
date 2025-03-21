@@ -8,6 +8,8 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.prebuilt import create_react_agent
 from neo4j import RoutingControl
 from tqdm import tqdm
+from tqdm.asyncio import tqdm as tqdm_async
+
 
 from graph_data import NodeData, RelationshipData, GraphData
 from graph_schema import GraphSchema, NodeSchema
@@ -388,29 +390,29 @@ class GraphRAG:
             for file_path in file_paths:
                 self.merge_csv(file_path)
 
-        def extract_nodes_from_text(self, file_path, text) -> GraphData:
+        async def extract_nodes_from_text(self, file_path, text) -> GraphData:
             prompt = TEXT_NODE_EXTRACTION_TEMPLATE.invoke({'fileName': os.path.basename(file_path),
                                                       'text': text,
                                                       'graphSchema': self.graphrag.schema.schema.nodes_only_prompt_str()})
             # pprint(prompt.text)
             # Use structured LLM for extraction
-            extracted_nodes: SubGraphNodes = self.llm_node_text_extractor.invoke(prompt)
+            extracted_nodes: SubGraphNodes = await self.llm_node_text_extractor.ainvoke(prompt)
             graph_data = extracted_nodes.to_subgraph().convert_to_graph_data(self.graphrag.schema.schema)
             return graph_data
 
-        def extract_nodes_and_rels_from_text(self, file_path, text) -> GraphData:
-            prompt = TEXT_EXTRACTION_TEMPLATE.invoke({'fileName': os.path.basename(file_path),
+        async def extract_nodes_and_rels_from_text(self, file_path, text) -> GraphData:
+            prompt = TEXT_EXTRACTION_TEMPLATE.ainvoke({'fileName': os.path.basename(file_path),
                                                       'text': text,
                                                       'graphSchema': self.graphrag.schema.schema.prompt_str()})
             # pprint(prompt.text)
             # Use structured LLM for extraction
-            extracted_subgraph: SubGraph = self.llm_text_extractor.invoke(prompt)
+            extracted_subgraph: SubGraph = await self.llm_text_extractor.invoke(prompt)
             graph_data:GraphData = extracted_subgraph.convert_to_graph_data(self.graphrag.schema.schema)
             return graph_data
 
         async def extract_from_text_async(self, text, semaphore, source_name: str, nodes_only=True) -> GraphData:
             async with semaphore:
-                graph_data = self.extract_nodes_from_text(source_name, text) if nodes_only \
+                graph_data = await self.extract_nodes_from_text(source_name, text) if nodes_only \
                     else self.extract_nodes_and_rels_from_text(source_name, text)
                 return graph_data
 
@@ -423,11 +425,13 @@ class GraphRAG:
             # Create tasks with the semaphore
             tasks = [self.extract_from_text_async(text, semaphore, source_name, nodes_only) for text in texts]
 
-            # Use tqdm with asyncio.as_completed to show progress
+            # Explicitly update progress using `tqdm` as tasks complete
             results = []
-            for future in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Extracting entities from text"):
-                result = await future
-                results.append(result)
+            with tqdm_async(total=len(tasks), desc="Extracting entities from text") as pbar:
+                for future in asyncio.as_completed(tasks):
+                    result = await future
+                    results.append(result)
+                    pbar.update(1)  # Increment progress bar for each completed task
             return results
 
         def extract_from_texts(self, texts: List[str], source_name: str, nodes_only=True, max_workers=10) -> List[GraphData]:
