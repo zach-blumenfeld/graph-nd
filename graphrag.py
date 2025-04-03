@@ -1,8 +1,9 @@
 import asyncio
 import json
 import os
+import uuid
 from pprint import pprint
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Any, Optional
 
 from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.prebuilt import create_react_agent
@@ -11,7 +12,7 @@ from tqdm import tqdm
 from tqdm.asyncio import tqdm as tqdm_async
 
 
-from graph_data import NodeData, RelationshipData, GraphData
+from graph_data import NodeData, RelationshipData, GraphData, SourceNodeData
 from graph_schema import GraphSchema, NodeSchema
 from graph_records import SubGraph, SubGraphNodes
 from table_mapping import TableTypeEnum, TableType, NodeTableMapping, RelTableMapping
@@ -20,7 +21,6 @@ from prompt_templates import SCHEMA_FROM_DESC_TEMPLATE, SCHEMA_FROM_SAMPLE_TEMPL
     QUERY_TEMPLATE, AGG_QUERY_TEMPLATE, AGENT_SYSTEM_TEMPLATE, TEXT_NODE_EXTRACTION_TEMPLATE
 from utils import read_csv_preview, read_csv, load_pdf, remove_key_recursive, run_async_function
 import nest_asyncio
-
 
 class GraphRAG:
     def __init__(self, db_client, llm=None, embedding_model=None):
@@ -216,7 +216,7 @@ class GraphRAG:
                                              self.llm_node_text_extractor,]):
                 raise ValueError("[Data] LLM is not set. Please set the LLM before calling this method.")
 
-        def merge_nodes(self, label:str, records: List[Dict]):
+        def merge_nodes(self, label:str, records: List[Dict], source_metadata: Optional[Dict[str, Any]] = None):
             """
             Merges nodes into the database using the provided label and record data.
 
@@ -242,9 +242,10 @@ class GraphRAG:
 
             node_schema = self.graphrag.schema.schema.get_node_schema_by_label(label)
             node_data = NodeData(node_schema=node_schema, records=records)
-            node_data.merge(self.db_client, embedding_model=self.embedding_model)
+            node_data.merge(self.db_client, source_metadata, embedding_model=self.embedding_model)
 
-        def merge_relationships(self, rel_type:str, start_node_label:str, end_node_label: str, records: List[Dict]):
+        def merge_relationships(self, rel_type:str, start_node_label:str, end_node_label: str, records: List[Dict],
+                                source_metadata: Optional[Dict[str, Any]] = None):
             """
             Merges relationships into the database using the provided relationship type, start node label,
             end node label, and record data.
@@ -285,7 +286,7 @@ class GraphRAG:
                                                  start_node_schema=start_node_schema,
                                                  end_node_schema=end_node_schema,
                                                  records=records)
-            relationship_data.merge(self.db_client)
+            relationship_data.merge(self.db_client, source_metadata)
 
         def get_table_mapping_type(self, table_name:str, table_preview: str) -> TableTypeEnum:
             self._validate_llms()

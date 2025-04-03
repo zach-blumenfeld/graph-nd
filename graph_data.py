@@ -1,3 +1,4 @@
+import uuid
 from typing import Any, Dict, Tuple, Optional, List
 import pandas as pd
 from langchain_openai import OpenAIEmbeddings
@@ -84,7 +85,26 @@ def batch_embed(df: pd.DataFrame, field_to_embed: str, embedding_field_name: str
     #print("[Embedding] Process completed successfully.")
     return filtered_df, len(embeddings[0])
 
+def validate_and_create_source_node(source_metadata, db_client, default_metadata = {'name':'ingest'}):
+    # Set the defaults if not exist or is empty
+    for k,v in default_metadata.items():
+        if k not in source_metadata or not source_metadata[k]:
+            source_metadata[k] = v
+    # Generate a random UUID for `id` if it doesn't exist or is empty
+    if "id" not in source_metadata or not source_metadata["id"]:
+        source_metadata["id"] = str(uuid.uuid4())
 
+    #create index if not exists
+    db_client.execute_query(
+        'CREATE INDEX range___source___id IF NOT EXISTS FOR (n:__Source__) ON n.id',
+        routing_=RoutingControl.WRITE
+    )
+
+    #create query and execute
+    prop_str = ', '.join([f'{prop_name}: rec.{prop_name}' for prop_name in source_metadata.keys()])
+    template = f'''CREATE(n:__Source__ {{{prop_str}}}) SET n.createdAt = datetime.realtime()'''
+    db_client.execute_query(template, routing_=RoutingControl.WRITE, rec=source_metadata.properties)
+    return source_metadata['id']
 
 
 class NodeData(BaseModel):
@@ -192,16 +212,22 @@ class NodeData(BaseModel):
                     self.create_vector_index_if_not_exists(db_client, embed_map['emb'], dim)
 
 
-    def merge(self, db_client, embedding_model=None, chunk_size=1000, emb_gen_chunk_size=1000,
+    def merge(self, db_client, source_metadata=None, embedding_model=None, chunk_size=1000, emb_gen_chunk_size=1000,
               emb_load_chunk_size=1000):
         """
         Merge node data into the database.
         """
+        if source_metadata:
+            source_id = validate_and_create_source_node(source_metadata,
+                                                        db_client,{"name": "Node Merge"})
+            # make query
+            query = self.make_node_merge_query(source_id)
+        else:
+            # make query
+            query = self.make_node_merge_query()
+
         # set constraint
         self.create_constraint_if_not_exists(db_client)
-
-        #make query
-        query = self.make_node_merge_query()
 
         #execute in chunks
         for recs in chunks(self.records, chunk_size):
@@ -242,12 +268,18 @@ class RelationshipData(BaseModel):
         template = template + '\n\t' + make_set_clause(prop_names, 'r', skip=skip_set_props)
         return template + '\n\tRETURN count(r) AS relLoadedCount'
 
-    def merge(self, db_client, chunk_size=1000):
+    def merge(self, db_client, source_metadata=None, chunk_size=1000):
         """
         Merge relationship data into the database.
         """
-        # make query
-        query = self.make_rel_merge_query()
+        if source_metadata:
+            source_id = validate_and_create_source_node(source_metadata,
+                                                        db_client,{"name": "Relationship Merge"})
+            # make query
+            query = self.make_rel_merge_query(source_id)
+        else:
+            # make query
+            query = self.make_rel_merge_query()
 
         # execute in chunks
         for recs in chunks(self.records, chunk_size):
@@ -271,3 +303,4 @@ class GraphData(BaseModel):
             #print(f"Merging ({relData.start_node_schema.label})-[{relData.rel_schema.type}]->({relData.end_node_schema.label}) relationships")
             relData.merge(db_client)
 
+#TODO: Perhaps every merge call in graphrag should be a single transaction that gets commited once all data is in.
