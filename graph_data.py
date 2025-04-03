@@ -1,5 +1,5 @@
 import uuid
-from typing import Any, Dict, Tuple, Optional, List
+from typing import Any, Dict, Tuple, Optional, List, Union
 import pandas as pd
 from langchain_openai import OpenAIEmbeddings
 from neo4j import RoutingControl
@@ -12,7 +12,7 @@ from graph_schema import NodeSchema, RelationshipSchema
 def chunks(xs, n=10_000):
     n = max(1, n)
     return [xs[i:i + n] for i in range(0, len(xs), n)]
-
+#TODO: Can we remove skip?
 def make_set_clause(prop_names: List[str], element_name='n', item_name='rec', skip=None):
     if skip is None:
         skip = []
@@ -22,6 +22,11 @@ def make_set_clause(prop_names: List[str], element_name='n', item_name='rec', sk
             clause_list.append(f'{element_name}.{prop_name} = {item_name}.{prop_name}')
     return 'SET ' + ', '.join(clause_list) if len(clause_list) > 0 else ''
 
+#TODO: Validate no leading __ in all labels, types, and property names. these shoulde be reserved for internals
+def make_source_set_clause(source_id, element_name='n'):
+    return f'''
+    SET {element_name}.__source_id = coalesce({element_name}.__source_id, [])  + ["{source_id}"]
+    '''
 
 def validate_property_names(records: List[Dict[str, Any]]) -> List[str]:
     """
@@ -85,7 +90,7 @@ def batch_embed(df: pd.DataFrame, field_to_embed: str, embedding_field_name: str
     #print("[Embedding] Process completed successfully.")
     return filtered_df, len(embeddings[0])
 
-def validate_and_create_source_node(source_metadata, db_client, default_metadata = {'name':'ingest'}):
+def validate_and_create_source_node(source_metadata: Dict[str, Any], db_client, default_metadata = {'name':'ingest'}):
     # Set the defaults if not exist or is empty
     for k,v in default_metadata.items():
         if k not in source_metadata or not source_metadata[k]:
@@ -170,12 +175,14 @@ class NodeData(BaseModel):
             if field.type == 'TEXT_EMBEDDING':
                 self.create_vector_index_if_not_exists(db_client, field.calculatedFrom, dim)
 
-    def make_node_merge_query(self):
+    def make_node_merge_query(self, source_id=None):
         template = f'''UNWIND $recs AS rec\nMERGE(n:{self.node_schema.label} {{{self.node_schema.id.name}: rec.{self.node_schema.id.name}}})'''
 
         # get property names from records and check for consistency
         prop_names = validate_property_names(self.records)
         template = template + '\n' + make_set_clause(prop_names, skip=[self.node_schema.id.name])
+        if source_id:
+            template = template + '\n' + make_source_set_clause(source_id)
         return template + '\nRETURN count(n) AS nodeLoadedCount'
 
     def merge_text_emb(self, db_client, embedding_model, emb_chunk_size=1000, load_chunk_size=1000):
@@ -212,12 +219,14 @@ class NodeData(BaseModel):
                     self.create_vector_index_if_not_exists(db_client, embed_map['emb'], dim)
 
 
-    def merge(self, db_client, source_metadata=None, embedding_model=None, chunk_size=1000, emb_gen_chunk_size=1000,
+    def merge(self, db_client, source_metadata: Union[bool, Dict[str, Any]]=True, embedding_model=None, chunk_size=1000, emb_gen_chunk_size=1000,
               emb_load_chunk_size=1000):
         """
         Merge node data into the database.
         """
         if source_metadata:
+            if source_metadata is True:
+                source_metadata: Dict[str, Any] = dict()
             source_id = validate_and_create_source_node(source_metadata,
                                                         db_client,{"name": "Node Merge"})
             # make query
@@ -252,7 +261,7 @@ class RelationshipData(BaseModel):
                                                                             " start/end node ids. "
                                                                             "records must contain 'start_node_id' and 'end_node_id' properties")
 
-    def make_rel_merge_query(self):
+    def make_rel_merge_query(self, source_id=None):
         merge_statement = f'MERGE(s)-[r:{self.rel_schema.type}]->(t)'
         skip_set_props = ['start_node_id','end_node_id']
         if self.rel_schema.id is not None:
@@ -266,13 +275,17 @@ class RelationshipData(BaseModel):
         # get property names from records and check for consistency
         prop_names = validate_property_names(self.records)
         template = template + '\n\t' + make_set_clause(prop_names, 'r', skip=skip_set_props)
+        if source_id:
+            template = template + '\n' + make_source_set_clause(source_id, 'r')
         return template + '\n\tRETURN count(r) AS relLoadedCount'
 
-    def merge(self, db_client, source_metadata=None, chunk_size=1000):
+    def merge(self, db_client, source_metadata: Union[bool, Dict[str, Any]]=True, chunk_size=1000):
         """
         Merge relationship data into the database.
         """
         if source_metadata:
+            if source_metadata is True:
+                source_metadata: Dict[str, Any] = dict()
             source_id = validate_and_create_source_node(source_metadata,
                                                         db_client,{"name": "Relationship Merge"})
             # make query
@@ -294,13 +307,13 @@ class GraphData(BaseModel):
     nodeDatas: List[NodeData] = Field(default_factory=list, description="list of NodeData records")
     relationshipDatas: Optional[List[RelationshipData]] = Field(default_factory=list, description="list of RelationshipData records")
 
-    def merge(self, db_client, embedding_model=None):
+    def merge(self, db_client, source_metadata: Union[bool, Dict[str, Any]]=True, embedding_model=None):
         for nodeData in self.nodeDatas:
             #print(f"Merging {nodeData.node_schema.label} nodes")
-            nodeData.merge(db_client, embedding_model=embedding_model)
+            nodeData.merge(db_client, source_metadata, embedding_model=embedding_model)
 
         for relData in self.relationshipDatas:
             #print(f"Merging ({relData.start_node_schema.label})-[{relData.rel_schema.type}]->({relData.end_node_schema.label}) relationships")
-            relData.merge(db_client)
+            relData.merge(db_client, source_metadata)
 
 #TODO: Perhaps every merge call in graphrag should be a single transaction that gets commited once all data is in.

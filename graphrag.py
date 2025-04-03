@@ -3,7 +3,7 @@ import json
 import os
 import uuid
 from pprint import pprint
-from typing import Dict, List, Tuple, Any, Optional
+from typing import Dict, List, Tuple, Any, Optional, Union
 
 from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.prebuilt import create_react_agent
@@ -216,7 +216,7 @@ class GraphRAG:
                                              self.llm_node_text_extractor,]):
                 raise ValueError("[Data] LLM is not set. Please set the LLM before calling this method.")
 
-        def merge_nodes(self, label:str, records: List[Dict], source_metadata: Optional[Dict[str, Any]] = None):
+        def merge_nodes(self, label:str, records: List[Dict], source_metadata: Union[bool, Dict[str, Any]] = True):
             """
             Merges nodes into the database using the provided label and record data.
 
@@ -240,12 +240,13 @@ class GraphRAG:
                 ValueError: If the label is not found in the graph schema
             """
 
+
             node_schema = self.graphrag.schema.schema.get_node_schema_by_label(label)
             node_data = NodeData(node_schema=node_schema, records=records)
             node_data.merge(self.db_client, source_metadata, embedding_model=self.embedding_model)
 
         def merge_relationships(self, rel_type:str, start_node_label:str, end_node_label: str, records: List[Dict],
-                                source_metadata: Optional[Dict[str, Any]] = None):
+                                source_metadata: Union[bool, Dict[str, Any]] = True):
             """
             Merges relationships into the database using the provided relationship type, start node label,
             end node label, and record data.
