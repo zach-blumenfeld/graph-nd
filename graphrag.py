@@ -12,7 +12,7 @@ from tqdm import tqdm
 from tqdm.asyncio import tqdm as tqdm_async
 
 
-from graph_data import NodeData, RelationshipData, GraphData, SourceNodeData
+from graph_data import NodeData, RelationshipData, GraphData
 from graph_schema import GraphSchema, NodeSchema
 from graph_records import SubGraph, SubGraphNodes
 from table_mapping import TableTypeEnum, TableType, NodeTableMapping, RelTableMapping

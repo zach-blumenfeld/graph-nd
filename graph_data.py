@@ -106,9 +106,9 @@ def validate_and_create_source_node(source_metadata: Dict[str, Any], db_client, 
     )
 
     #create query and execute
-    prop_str = ', '.join([f'{prop_name}: rec.{prop_name}' for prop_name in source_metadata.keys()])
+    prop_str = ', '.join([f'{prop_name}: $rec.{prop_name}' for prop_name in source_metadata.keys()])
     template = f'''CREATE(n:__Source__ {{{prop_str}}}) SET n.createdAt = datetime.realtime()'''
-    db_client.execute_query(template, routing_=RoutingControl.WRITE, rec=source_metadata.properties)
+    db_client.execute_query(template, routing_=RoutingControl.WRITE, rec=source_metadata)
     return source_metadata['id']
 
 
