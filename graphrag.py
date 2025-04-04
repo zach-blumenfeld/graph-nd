@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import uuid
+from datetime import datetime
 from pprint import pprint
 from typing import Dict, List, Tuple, Any, Optional, Union
 
@@ -15,6 +16,7 @@ from tqdm.asyncio import tqdm as tqdm_async
 from graph_data import NodeData, RelationshipData, GraphData
 from graph_schema import GraphSchema, NodeSchema
 from graph_records import SubGraph, SubGraphNodes
+from source_metadata import SourceType, TransformType, LoadType, prepare_source_metadata
 from table_mapping import TableTypeEnum, TableType, NodeTableMapping, RelTableMapping
 from prompt_templates import SCHEMA_FROM_DESC_TEMPLATE, SCHEMA_FROM_SAMPLE_TEMPLATE, SCHEMA_FROM_DICT_TEMPLATE, \
     TABLE_TYPE_TEMPLATE, NODE_MAPPING_TEMPLATE, RELATIONSHIPS_MAPPING_TEMPLATE, TEXT_EXTRACTION_TEMPLATE, \
@@ -323,11 +325,23 @@ class GraphRAG:
             rels_mapping:RelTableMapping = self.llm_rels_table_mapping.invoke(prompt)
             return rels_mapping
 
-        def merge_node_table(self, table_records:List[Dict], node_mapping:NodeTableMapping):
+        def merge_node_table(self, table_records:List[Dict], node_mapping:NodeTableMapping, source_metadata: Union[bool, Dict[str, Any]] = True):
                 node_records = [node_mapping.convert_to_node_record(rec)['record'] for rec in table_records]
-                self.merge_nodes(node_mapping.nodeLabel, node_records)
+                default_source_metadata = {
+                    "id": f"merge_nodes_from_table_{os.path.basename(node_mapping.tableName)}_at_{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                    "sourceType": SourceType.STRUCTURED_TABLE.value,
+                    "transformType": TransformType.TABLE_MAPPING_TO_NODE.value,
+                    "loadType": LoadType.MERGE_NODES.value,
+                    "name": os.path.basename(node_mapping.tableName),
+                    "description": node_mapping.tableDescription,
+                    "file": node_mapping.tableName,
+                }
 
-        def merge_relationships_from_table(self, table_records:List[Dict], rel_mapping:RelTableMapping):
+                source_metadata = prepare_source_metadata(source_metadata, default_source_metadata)
+
+                self.merge_nodes(node_mapping.nodeLabel, node_records, source_metadata)
+
+        def merge_relationships_from_table(self, table_records:List[Dict], rel_mapping:RelTableMapping, source_metadata: Union[bool, Dict[str, Any]] = True):
             rel_records = dict()
             node_records = dict()
             dicts_of_triple_records = [rel_mapping.convert_to_triple_records(rec) for rec in table_records]
@@ -348,41 +362,69 @@ class GraphRAG:
                         node_records[triple_data[2]['label']] = []
                     node_records[triple_data[2]['label']].append(triple_data[2]['record']) # appends end node
 
+            default_source_metadata = {
+                "id": f"merge_nodes_and_rels_from_table_{os.path.basename(rel_mapping.tableName)}_at_{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                "sourceType": SourceType.STRUCTURED_TABLE.value,
+                "transformType": TransformType.TABLE_MAPPING_TO_NODES_AND_RELATIONSHIPS.value,
+                "loadType": LoadType.MERGE_NODES_AND_RELATIONSHIPS.value,
+                "name": os.path.basename(rel_mapping.tableName),
+                "description": rel_mapping.tableDescription,
+                "file": rel_mapping.tableName,
+            }
+            source_metadata = prepare_source_metadata(source_metadata, default_source_metadata)
+
             # merge nodes
             for node_label, node_records_list in node_records.items():
-                self.merge_nodes(node_label, node_records_list)
+                self.merge_nodes(node_label, node_records_list, source_metadata)
 
             #merge relationships
             for rel_key, rel_data in rel_records.items():
                 self.merge_relationships(rel_data['metadata']['rel_type'],
                                         rel_data['metadata']['start_node_label'],
                                         rel_data['metadata']['end_node_label'],
-                                        rel_data['records'])
+                                        rel_data['records'],
+                                        source_metadata)
 
-        def merge_node_csv(self, file_path: str):
+        def merge_node_csv(self, file_path: str, source_metadata: Union[bool, Dict[str, Any]] = True):
             table_records = read_csv(file_path)
             table_preview = read_csv_preview(file_path)
             node_mapping = self.get_table_node_mapping(os.path.basename(file_path), table_preview)
-            self.merge_node_table(table_records, node_mapping)
+            default_source_metadata = {
+                "id": f"merge_nodes_from_csv_table_{os.path.basename(file_path)}_at_{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                "sourceType": SourceType.STRUCTURED_TABLE_CSV.value,
+                "transformType": TransformType.LLM_TABLE_MAPPING_TO_NODE.value,
+                "name": os.path.basename(file_path),
+                "file": file_path,
+            }
+            source_metadata = prepare_source_metadata(source_metadata, default_source_metadata)
+            self.merge_node_table(table_records, node_mapping, source_metadata)
 
-        def merge_relationships_csv(self, file_path: str):
+        def merge_relationships_csv(self, file_path: str, source_metadata: Union[bool, Dict[str, Any]] = True):
             table_records = read_csv(file_path)
             table_preview = read_csv_preview(file_path)
             rel_mapping = self.get_table_relationships_mapping(os.path.basename(file_path), table_preview)
-            self.merge_relationships_from_table(table_records, rel_mapping)
+            default_source_metadata = {
+                "id": f"merge_nodes_and_rels_from_csv_table_{os.path.basename(file_path)}_at_{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                "sourceType": SourceType.STRUCTURED_TABLE_CSV.value,
+                "transformType": TransformType.LLM_TABLE_MAPPING_TO_NODES_AND_RELATIONSHIPS.value,
+                "name": os.path.basename(file_path),
+                "file": file_path,
+            }
+            source_metadata = prepare_source_metadata(source_metadata, default_source_metadata)
+            self.merge_relationships_from_table(table_records, rel_mapping, source_metadata)
 
-        def merge_csv(self, file_path: str):
+        def merge_csv(self, file_path: str, source_metadata: Union[bool, Dict[str, Any]] = True):
             table_preview = read_csv_preview(file_path)
             table_type = self.get_table_mapping_type(os.path.basename(file_path), table_preview)
             print(f"[Data] Merging {os.path.basename(file_path)} as {table_type}.")
             if table_type == TableTypeEnum.SINGLE_NODE:
-                self.merge_node_csv(file_path)
+                self.merge_node_csv(file_path, source_metadata)
             elif table_type == TableTypeEnum.RELATIONSHIPS:
-                self.merge_relationships_csv(file_path)
+                self.merge_relationships_csv(file_path, source_metadata)
             else:
                 raise ValueError(f"[Data] Unable to determine table type for {file_path}. Got table_type={table_type} instead.")
 
-        def merge_csvs(self, file_paths: List[str]):
+        def merge_csvs(self, file_paths: List[str], source_metadata: Union[bool, Dict[str, Any]] = True):
             """
             Merges data from CSV files into the knowledge graph.
 
@@ -390,7 +432,7 @@ class GraphRAG:
                 file_paths (List[str]): The file paths to csvs
             """
             for file_path in file_paths:
-                self.merge_csv(file_path)
+                self.merge_csv(file_path, source_metadata)
 
         async def extract_nodes_from_text(self, file_path, text) -> GraphData:
             prompt = TEXT_NODE_EXTRACTION_TEMPLATE.invoke({'fileName': os.path.basename(file_path),
@@ -439,17 +481,35 @@ class GraphRAG:
         def extract_from_texts(self, texts: List[str], source_name: str, nodes_only=True, max_workers=10) -> List[GraphData]:
             return run_async_function(self.extract_from_texts_async, texts, source_name, nodes_only, max_workers)
 
-        def merge_texts(self, texts: List[str], source_name: str, nodes_only=True, max_workers=10):
+        def merge_texts(self, texts: List[str], source_name: str, nodes_only=True, max_workers=10, source_metadata: Union[bool, Dict[str, Any]] = True):
             graph_datas = self.extract_from_texts(texts, source_name, nodes_only, max_workers)
+
+            default_source_metadata = {
+                "sourceType": SourceType.UNSTRUCTURED_TEXT.value,
+                "name": os.path.basename(source_name),
+                "file": source_name,
+            }
+            if nodes_only:
+                default_source_metadata["id"] = f"merge_nodes_from_text_{os.path.basename(source_name)}_at_{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                default_source_metadata["transformType"] = TransformType.LLM_TEXT_EXTRACTION_TO_NODES.value
+                default_source_metadata["loadType"] = LoadType.MERGE_NODES.value
+            else:
+                default_source_metadata["id"] = f"merge_nodes_and_rels_from_text_{os.path.basename(source_name)}_at_{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                default_source_metadata["transformType"] = TransformType.LLM_TEXT_EXTRACTION_TO_NODES_AND_RELATIONSHIPS.value
+                default_source_metadata["loadType"] = LoadType.MERGE_NODES_AND_RELATIONSHIPS.value
+
+            source_metadata = prepare_source_metadata(source_metadata, default_source_metadata)
+
             for graph_data in tqdm(graph_datas, desc="Merging entities from text"):
                 # merge nodes
                 for node_data in graph_data.nodeDatas:
-                    node_data.merge(self.db_client, embedding_model=self.embedding_model)
+                    node_data.merge(self.db_client, embedding_model=self.embedding_model, source_metadata=source_metadata)
                 # merge relationships
                 for rels_data in graph_data.relationshipDatas:
-                    rels_data.merge(self.db_client)
+                    rels_data.merge(self.db_client, source_metadata=source_metadata)
 
-        def merge_pdf(self, file_path: str, chunk_strategy="BY_PAGE", chunk_size=10, nodes_only=True, max_workers=10):
+        def merge_pdf(self, file_path: str, chunk_strategy="BY_PAGE", chunk_size=10, nodes_only=True, max_workers=10,
+                      source_metadata: Union[bool, Dict[str, Any]] = True):
             """
             Merges data from a PDF file into a graph database by extracting structured graph-based entities
             through the use of a Large Language Model (LLM) textual extractor. The method processes the PDF
@@ -472,7 +532,14 @@ class GraphRAG:
             """
             print(f"[Data] Merging data from document: {file_path}")
             texts = load_pdf(file_path=file_path, chunk_strategy=chunk_strategy, chunk_size=chunk_size)
-            self.merge_texts(texts, file_path, nodes_only, max_workers)
+            default_source_metadata = {
+                "sourceType": SourceType.UNSTRUCTURED_TEXT_PDF_FILE.value,
+                "name": os.path.basename(file_path),
+                "file": file_path,
+            }
+
+            source_metadata = prepare_source_metadata(source_metadata, default_source_metadata)
+            self.merge_texts(texts, file_path, nodes_only, max_workers, source_metadata)
 
         def nuke(self, delete_chunk_size=10_000, skip_confirmation=False):
             """

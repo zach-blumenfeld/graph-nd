@@ -32,14 +32,6 @@ class TestNodeDataMerge(unittest.TestCase):
         )
 
     @patch("graph_data.validate_and_create_source_node")  # Patch the standalone function
-    def test_merge_default_metadata(self, mock_validate):
-        """Test merging with default metadata"""
-        self.node_data.merge(self.db_client, source_metadata=True)
-
-        # Assert validate_and_create_source_node was called
-        mock_validate.assert_called_once_with({},self.db_client, {'name': 'Node Merge'})
-
-    @patch("graph_data.validate_and_create_source_node")  # Patch the standalone function
     def test_merge_no_metadata(self, mock_validate):
         """Test merging without metadata"""
         self.node_data.merge(self.db_client, source_metadata=False)
@@ -54,5 +46,6 @@ class TestNodeDataMerge(unittest.TestCase):
         self.node_data.merge(self.db_client, source_metadata=source_metadata)
 
         # Assert validate_and_create_source_node was called with the correct arguments
-        mock_validate.assert_called_once_with({"id": "source123", "name": "custom"}, self.db_client, {'name': 'Node Merge'})
+        mock_validate.assert_called_once_with({'id': 'source123', 'name': 'custom', 'sourceType': 'NODE_LIST', 'transformType': 'UNKNOWN', 'loadType': 'MERGE_NODES'},
+                                              self.db_client)
 

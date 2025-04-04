@@ -39,7 +39,7 @@ class TestRelationshipDataMerge(unittest.TestCase):
         self.rel_data.merge(self.db_client, source_metadata=source_metadata)
 
         # Assert if validate_and_create_source_node was called
-        mock_validate.assert_called_once_with({"id": "source123"},self.db_client, {'name': 'Relationship Merge'})
+        mock_validate.assert_called_once_with({'id': 'source123', 'sourceType': 'RELATIONSHIP_LIST', 'transformType': 'UNKNOWN', 'loadType': 'MERGE_RELATIONSHIPS', 'name': 'relationship-merge'},self.db_client)
 
     @patch("graph_data.validate_and_create_source_node")  # Patch standalone function
     def test_merge_without_source_id(self, mock_validate):

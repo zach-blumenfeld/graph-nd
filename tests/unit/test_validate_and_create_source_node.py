@@ -22,7 +22,7 @@ class TestValidateAndCreateSourceNode(unittest.TestCase):
             routing_=RoutingControl.WRITE
         )
         self.db_client.execute_query.assert_any_call(
-            """CREATE(n:__Source__ {id: $rec.id, name: $rec.name}) SET n.createdAt = datetime.realtime()""",
+            """MERGE(n:__Source__ {id: $rec.id, name: $rec.name}) SET n.createdAt = datetime.realtime()""",
             routing_=RoutingControl.WRITE,
             rec=source_metadata
         )

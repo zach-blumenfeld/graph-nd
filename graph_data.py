@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from typing import Any, Dict, Tuple, Optional, List, Union
 import pandas as pd
 from langchain_openai import OpenAIEmbeddings
@@ -7,6 +8,7 @@ from pydantic import BaseModel, Field
 from tqdm import tqdm
 
 from graph_schema import NodeSchema, RelationshipSchema
+from source_metadata import SourceType, TransformType, LoadType, prepare_source_metadata
 
 
 def chunks(xs, n=10_000):
@@ -90,11 +92,8 @@ def batch_embed(df: pd.DataFrame, field_to_embed: str, embedding_field_name: str
     #print("[Embedding] Process completed successfully.")
     return filtered_df, len(embeddings[0])
 
-def validate_and_create_source_node(source_metadata: Dict[str, Any], db_client, default_metadata = {'name':'ingest'}):
-    # Set the defaults if not exist or is empty
-    for k,v in default_metadata.items():
-        if k not in source_metadata or not source_metadata[k]:
-            source_metadata[k] = v
+def validate_and_create_source_node(source_metadata: Dict[str, Any], db_client):
+
     # Generate a random UUID for `id` if it doesn't exist or is empty
     if "id" not in source_metadata or not source_metadata["id"]:
         source_metadata["id"] = str(uuid.uuid4())
@@ -107,7 +106,7 @@ def validate_and_create_source_node(source_metadata: Dict[str, Any], db_client, 
 
     #create query and execute
     prop_str = ', '.join([f'{prop_name}: $rec.{prop_name}' for prop_name in source_metadata.keys()])
-    template = f'''CREATE(n:__Source__ {{{prop_str}}}) SET n.createdAt = datetime.realtime()'''
+    template = f'''MERGE(n:__Source__ {{{prop_str}}}) SET n.createdAt = datetime.realtime()'''
     db_client.execute_query(template, routing_=RoutingControl.WRITE, rec=source_metadata)
     return source_metadata['id']
 
@@ -224,11 +223,16 @@ class NodeData(BaseModel):
         """
         Merge node data into the database.
         """
+        default_source_metadata = {
+            "id": f"merge_nodes_at_{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}_{uuid.uuid4().hex[:8]}",
+            "sourceType": SourceType.NODE_LIST.value,
+            "transformType": TransformType.UNKNOWN.value,
+            "loadType": LoadType.MERGE_NODES.value,
+            "name": "node-merge",
+        }
+        source_metadata = prepare_source_metadata(source_metadata, default_source_metadata)
         if source_metadata:
-            if source_metadata is True:
-                source_metadata: Dict[str, Any] = dict()
-            source_id = validate_and_create_source_node(source_metadata,
-                                                        db_client,{"name": "Node Merge"})
+            source_id = validate_and_create_source_node(source_metadata, db_client)
             # make query
             query = self.make_node_merge_query(source_id)
         else:
@@ -283,11 +287,16 @@ class RelationshipData(BaseModel):
         """
         Merge relationship data into the database.
         """
+        default_source_metadata = {
+            "id": f"merge_relationships_at_{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}_{uuid.uuid4().hex[:8]}",
+            "sourceType": SourceType.RELATIONSHIP_LIST.value,
+            "transformType": TransformType.UNKNOWN.value,
+            "loadType": LoadType.MERGE_RELATIONSHIPS.value,
+            "name": "relationship-merge",
+        }
+        source_metadata = prepare_source_metadata(source_metadata, default_source_metadata)
         if source_metadata:
-            if source_metadata is True:
-                source_metadata: Dict[str, Any] = dict()
-            source_id = validate_and_create_source_node(source_metadata,
-                                                        db_client,{"name": "Relationship Merge"})
+            source_id = validate_and_create_source_node(source_metadata, db_client)
             # make query
             query = self.make_rel_merge_query(source_id)
         else:
@@ -308,6 +317,14 @@ class GraphData(BaseModel):
     relationshipDatas: Optional[List[RelationshipData]] = Field(default_factory=list, description="list of RelationshipData records")
 
     def merge(self, db_client, source_metadata: Union[bool, Dict[str, Any]]=True, embedding_model=None):
+        default_source_metadata = {
+            "id": f"merge_relationships_at_{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}_{uuid.uuid4().hex[:8]}",
+            "sourceType": SourceType.NODE_AND_RELATIONSHIP_LISTS.value,
+            "transformType": TransformType.UNKNOWN.value,
+            "loadType": LoadType.MERGE_NODES_AND_RELATIONSHIPS.value,
+            "name": "node-and-relationship-merge",
+        }
+        source_metadata = prepare_source_metadata(source_metadata, default_source_metadata)
         for nodeData in self.nodeDatas:
             #print(f"Merging {nodeData.node_schema.label} nodes")
             nodeData.merge(db_client, source_metadata, embedding_model=embedding_model)
