@@ -76,12 +76,16 @@ class TestMergeCSVsFunctional(unittest.TestCase):
         # count unique nodes should equal number of rows in components.csv
         with self.db_client.session() as session:
             # Query the number of unique nodes
-            unique_node_count = session.run("MATCH (n) RETURN count(n) AS node_count").single()["node_count"]
+            unique_node_count = session.run("MATCH (n) WHERE NOT n:__Source__ RETURN count(n) AS node_count").single()["node_count"]
+            unique_source_node_count = session.run("MATCH (n:__Source__) RETURN count(n) AS node_count").single()["node_count"]
 
         # Expected node count is the number of rows in components.csv
         expected_node_count = sum(1 for _ in open(self.csv_files[0])) - 1  # Subtract 1 for the header row
+        expected_source_node_count = 3
         self.assertEqual(unique_node_count, expected_node_count,
                          "Number of unique nodes does not match rows in components.csv")
+        self.assertEqual(unique_source_node_count, expected_source_node_count,
+                         "Number of unique source nodes does not match number of sources")
 
         # count unique relationships should equal number of rows in component-types.csv + components-input-outpus.csv
         with self.db_client.session() as session:

@@ -73,12 +73,18 @@ class TestMergePDFNodesFunctional(unittest.TestCase):
         # count unique nodes should equal 79
         with self.db_client.session() as session:
             # Query the number of unique nodes
-            unique_node_count = session.run("MATCH (n) RETURN count(n) AS node_count").single()["node_count"]
+            unique_node_count = session.run("MATCH (n) WHERE NOT n:__Source__ RETURN count(n) AS node_count").single()[
+                "node_count"]
+            unique_source_node_count = session.run("MATCH (n:__Source__) RETURN count(n) AS node_count").single()[
+                "node_count"]
 
         # Expected node count is 79 - the number of pages in pdf.
         expected_node_count = 79
+        expected_source_node_count = 1
         self.assertEqual(unique_node_count, expected_node_count,
-                         "Number of unique nodes does not match rows in components.csv")
+                         "Number of unique nodes does not match")
+        self.assertEqual(unique_source_node_count, expected_source_node_count,
+                         "Number of unique source nodes does not match number of sources")
 
         # count unique relationships - should be 0
         with self.db_client.session() as session:
