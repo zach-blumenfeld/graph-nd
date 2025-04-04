@@ -403,19 +403,19 @@ class GraphRAG:
             return graph_data
 
         async def extract_nodes_and_rels_from_text(self, file_path, text) -> GraphData:
-            prompt = TEXT_EXTRACTION_TEMPLATE.ainvoke({'fileName': os.path.basename(file_path),
+            prompt = TEXT_EXTRACTION_TEMPLATE.invoke({'fileName': os.path.basename(file_path),
                                                       'text': text,
                                                       'graphSchema': self.graphrag.schema.schema.prompt_str()})
             # pprint(prompt.text)
             # Use structured LLM for extraction
-            extracted_subgraph: SubGraph = await self.llm_text_extractor.invoke(prompt)
+            extracted_subgraph: SubGraph = await self.llm_text_extractor.ainvoke(prompt)
             graph_data:GraphData = extracted_subgraph.convert_to_graph_data(self.graphrag.schema.schema)
             return graph_data
 
         async def extract_from_text_async(self, text, semaphore, source_name: str, nodes_only=True) -> GraphData:
             async with semaphore:
                 graph_data = await self.extract_nodes_from_text(source_name, text) if nodes_only \
-                    else self.extract_nodes_and_rels_from_text(source_name, text)
+                    else await self.extract_nodes_and_rels_from_text(source_name, text)
                 return graph_data
 
 
