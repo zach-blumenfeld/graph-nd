@@ -1,0 +1,119 @@
+{
+    "description": "A graph schema representing people, movies, and awards",
+    "nodes": [
+        {
+            "description": "Person entity representing individuals in the graph",
+            "id": {
+                "description": "Person unique identifier",
+                "name": "id",
+                "type": "STRING"
+            },
+            "label": "Person",
+            "properties": [
+                {
+                    "description": "Full name of the person",
+                    "name": "name",
+                    "type": "STRING"
+                },
+                {
+                    "description": "Age of the person",
+                    "name": "age",
+                    "type": "INTEGER"
+                }
+            ],
+            "searchFields": []
+        },
+        {
+            "description": "Movie entity representing films in the graph",
+            "id": {
+                "description": "Movie unique identifier",
+                "name": "id",
+                "type": "STRING"
+            },
+            "label": "Movie",
+            "properties": [
+                {
+                    "description": "Title of the movie",
+                    "name": "title",
+                    "type": "STRING"
+                },
+                {
+                    "description": "Year the movie was released",
+                    "name": "release_year",
+                    "type": "INTEGER"
+                }
+            ],
+            "searchFields": []
+        },
+        {
+            "description": "Award entity representing awards given to movies or people",
+            "id": {
+                "description": "Award unique identifier",
+                "name": "id",
+                "type": "STRING"
+            },
+            "label": "Award",
+            "properties": [
+                {
+                    "description": "Name of the award",
+                    "name": "name",
+                    "type": "STRING"
+                }
+            ],
+            "searchFields": []
+        }
+    ],
+    "relationships": [
+        {
+            "description": "Indicates that a Person acted in a Movie",
+            "id": null,
+            "type": "ACTED_IN",
+            "queryPatterns": [
+                {
+                    "description": "Represent Person acted in a Movie",
+                    "startNode": "Person",
+                    "endNode": "Movie"
+                }
+            ],
+            "properties": [
+                {
+                    "description": "Role played by the person",
+                    "name": "role",
+                    "type": "STRING"
+                }
+            ]
+        },
+        {
+            "description": "Indicates that a Person won an Award",
+            "id": null,
+            "type": "WON",
+            "queryPatterns": [
+                {
+                    "description": "Represent a Person won an Award",
+                    "startNode": "Person",
+                    "endNode": "Award"
+                }
+            ],
+            "properties": [
+                {
+                    "description": "Year the award was won",
+                    "name": "year",
+                    "type": "INTEGER"
+                }
+            ]
+        },
+        {
+            "description": "Indicates that a Person directed a Movie",
+            "id": null,
+            "type": "DIRECTED",
+            "queryPatterns": [
+                {
+                    "description": "Represent a Person directed a Movie",
+                    "startNode": "Person",
+                    "endNode": "Movie"
+                }
+            ],
+            "properties": []
+        }
+    ]
+}

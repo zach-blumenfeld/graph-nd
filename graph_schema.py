@@ -81,6 +81,7 @@ class RelationshipSchema(Element):
 class GraphSchema(Element):
     nodes: List[NodeSchema] = Field(default_factory=list, description="List of nodes in the graph")
     relationships: List[RelationshipSchema] = Field(default_factory=list, description="List of relationships in the graph")
+    #trackSources: bool = Field(default=True, description="Set to True unless user specifies otherwise. Whether to track the source of each node and relationship.")
 
     def query_model_dump(self, **kwargs) -> dict:
         """
