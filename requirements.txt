@@ -8,3 +8,5 @@ PyPDF2
 tqdm
 PyYAML
 pydantic
+snowflake-snowpark-python[pandas]
+
