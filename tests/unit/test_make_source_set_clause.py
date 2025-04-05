@@ -1,6 +1,6 @@
 import unittest
 
-from graphrag.graph_data import make_source_set_clause
+from graph_nd.graphrag.graph_data import make_source_set_clause
 
 
 class TestMakeSourceSetClause(unittest.TestCase):

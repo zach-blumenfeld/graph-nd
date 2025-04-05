@@ -4,8 +4,8 @@ import os
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 
-from graphrag.graph_schema import GraphSchema
-from graphrag import GraphRAG  # Replace with actual import path
+from graph_nd.graphrag.graph_schema import GraphSchema
+from graph_nd import GraphRAG  # Replace with actual import path
 
 
 class TestGraphRAGSchemaInference(unittest.TestCase):

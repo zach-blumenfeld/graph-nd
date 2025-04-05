@@ -4,10 +4,10 @@ import unittest
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 
-from graphrag.graph_schema import NodeSchema, PropertySchema, RelationshipSchema, QueryPattern, GraphSchema
-from graphrag import GraphRAG
-from graphrag.table_mapping import NodeTableMapping
-from graphrag.utils import format_table_as_markdown_preview
+from graph_nd.graphrag.graph_schema import NodeSchema, PropertySchema, RelationshipSchema, QueryPattern, GraphSchema
+from graph_nd import GraphRAG
+from graph_nd.graphrag.table_mapping import NodeTableMapping
+from graph_nd.graphrag.utils import format_table_as_markdown_preview
 
 
 class TestGraphRAGNodeRelTableMappings(unittest.TestCase):

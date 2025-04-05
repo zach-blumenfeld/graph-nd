@@ -1,7 +1,7 @@
 import asyncio
 import unittest
 from unittest import mock
-from graphrag.utils import run_async_function  # Replace 'your_module' with the actual module name
+from graph_nd.graphrag.utils import run_async_function  # Replace 'your_module' with the actual module name
 
 
 async def sample_async_function(x, y):

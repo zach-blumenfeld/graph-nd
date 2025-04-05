@@ -1,6 +1,6 @@
 import os
 import unittest
-from graphrag.utils import load_pdf
+from graph_nd.graphrag.utils import load_pdf
 
 
 class TestPDFLoader(unittest.TestCase):

@@ -7,8 +7,8 @@ from dotenv import load_dotenv
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from neo4j import GraphDatabase
 
-from graphrag.graph_schema import GraphSchema
-from graphrag import GraphRAG
+from graph_nd.graphrag.graph_schema import GraphSchema
+from graph_nd import GraphRAG
 
 
 class TestMergeCSVsFunctional(unittest.TestCase):

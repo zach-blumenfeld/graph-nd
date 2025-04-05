@@ -3,8 +3,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from graphrag.graph_schema import GraphSchema  # Replace with the real path for GraphSchema
-from graphrag.graph_data import NodeData  # Import your NodeData class from the correct module
+from graph_nd.graphrag.graph_schema import GraphSchema  # Replace with the real path for GraphSchema
+from graph_nd.graphrag.graph_data import NodeData  # Import your NodeData class from the correct module
 
 # Filepath for `movie-schema.json`
 SCHEMA_FILE_PATH = Path("data/movie-schema.json")
@@ -31,7 +31,7 @@ class TestNodeDataMerge(unittest.TestCase):
             records=[{"name": "Alice", "age": 30}]
         )
 
-    @patch("graphrag.graph_data.validate_and_create_source_node")  # Patch the standalone function
+    @patch("graph_nd.graphrag.graph_data.validate_and_create_source_node")  # Patch the standalone function
     def test_merge_no_metadata(self, mock_validate):
         """Test merging without metadata"""
         self.node_data.merge(self.db_client, source_metadata=False)
@@ -39,7 +39,7 @@ class TestNodeDataMerge(unittest.TestCase):
         # Assert validate_and_create_source_node was NOT called
         mock_validate.assert_not_called()
 
-    @patch("graphrag.graph_data.validate_and_create_source_node")  # Patch the standalone function
+    @patch("graph_nd.graphrag.graph_data.validate_and_create_source_node")  # Patch the standalone function
     def test_merge_custom_metadata(self, mock_validate):
         """Test merging with custom metadata"""
         source_metadata = {"id": "source123", "name": "custom"}

@@ -13,15 +13,15 @@ from tqdm import tqdm
 from tqdm.asyncio import tqdm as tqdm_async
 
 
-from graphrag.graph_data import NodeData, RelationshipData, GraphData
-from graphrag.graph_schema import GraphSchema, NodeSchema
-from graphrag.graph_records import SubGraph, SubGraphNodes
-from graphrag.source_metadata import SourceType, TransformType, LoadType, prepare_source_metadata
-from graphrag.table_mapping import TableTypeEnum, TableType, NodeTableMapping, RelTableMapping
-from graphrag.prompt_templates import SCHEMA_FROM_DESC_TEMPLATE, SCHEMA_FROM_SAMPLE_TEMPLATE, SCHEMA_FROM_DICT_TEMPLATE, \
+from graph_nd.graphrag.graph_data import NodeData, RelationshipData, GraphData
+from graph_nd.graphrag.graph_schema import GraphSchema, NodeSchema
+from graph_nd.graphrag.graph_records import SubGraph, SubGraphNodes
+from graph_nd.graphrag.source_metadata import SourceType, TransformType, LoadType, prepare_source_metadata
+from graph_nd.graphrag.table_mapping import TableTypeEnum, TableType, NodeTableMapping, RelTableMapping
+from graph_nd.graphrag.prompt_templates import SCHEMA_FROM_DESC_TEMPLATE, SCHEMA_FROM_SAMPLE_TEMPLATE, SCHEMA_FROM_DICT_TEMPLATE, \
     TABLE_TYPE_TEMPLATE, NODE_MAPPING_TEMPLATE, RELATIONSHIPS_MAPPING_TEMPLATE, TEXT_EXTRACTION_TEMPLATE, \
     QUERY_TEMPLATE, AGG_QUERY_TEMPLATE, AGENT_SYSTEM_TEMPLATE, TEXT_NODE_EXTRACTION_TEMPLATE
-from graphrag.utils import read_csv_preview, read_csv, load_pdf, remove_key_recursive, run_async_function
+from graph_nd.graphrag.utils import read_csv_preview, read_csv, load_pdf, remove_key_recursive, run_async_function
 import nest_asyncio
 
 class GraphRAG:

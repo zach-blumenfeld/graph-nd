@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 from neo4j import RoutingControl
 
-from graphrag.graph_data import validate_and_create_source_node
+from graph_nd.graphrag.graph_data import validate_and_create_source_node
 
 
 class TestValidateAndCreateSourceNode(unittest.TestCase):

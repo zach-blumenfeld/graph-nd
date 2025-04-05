@@ -2,8 +2,8 @@ from typing import Optional, List
 
 from neo4j import Driver
 
-from ai_tier.data_source import DataSource, DataSourceType
-from graphrag import GraphRAG
+from graph_nd.ai_tier.data_source import DataSource
+from graph_nd import GraphRAG
 
 # Models class to package LLMs and Embedders. This will be made more sophisticated later
 class Models:
@@ -50,17 +50,17 @@ class AITier:
             """
             Syncs all data sources into the knowledge graph.
             """
-            for source in self.data_sources:
-                if source.type() == DataSourceType.RDBMS:
-                    schema = source.schema()
-                    for table_name in schema.get("tables", []):
-                        data = source.get(table_name)
-                        self.graphrag.data.merge_node_table(data)
-                elif source.type() == DataSourceType.TEXT_DOCUMENTS:
-                    # Handle text document merging
-                    for doc_name in source.storage_client.list_files():
-                        doc_text = source.get(doc_name)
-                        self.graphrag.data.merge_texts([doc_text])
+            # for source in self.data_sources:
+            #     if source.type() == DataSourceType.RDBMS:
+            #         schema = source.schema()
+            #         for table_name in schema.get("tables", []):
+            #             data = source.get(table_name)
+            #             self.graphrag.data.merge_node_table(data)
+            #     elif source.type() == DataSourceType.TEXT_DOCUMENTS:
+            #         # Handle text document merging
+            #         for doc_name in source.storage_client.list_files():
+            #             doc_text = source.get(doc_name)
+            #             self.graphrag.data.merge_texts([doc_text])
 
 
         def infer_mapping(self, use_cases:str):
