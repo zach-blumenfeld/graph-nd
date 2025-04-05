@@ -3,7 +3,7 @@ from typing import Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
-from graph_schema import GraphSchema
+from graphrag.graph_schema import GraphSchema
 
 class TableTypeEnum(str, Enum):
     SINGLE_NODE = 'SINGLE_NODE'

@@ -2,7 +2,7 @@ from typing import Optional, List
 
 from neo4j import Driver
 
-from data_source import DataSource, DataSourceType
+from ai_tier.data_source import DataSource, DataSourceType
 from graphrag import GraphRAG
 
 # Models class to package LLMs and Embedders. This will be made more sophisticated later
@@ -14,7 +14,7 @@ class Models:
 
 
 
-class AiTier:
+class AITier:
     def __init__(self, models: Models, knowledge_graph: Driver, data_sources: Optional[List[DataSource]] = None):
         self.data_sources = data_sources if data_sources else []
 
@@ -64,7 +64,8 @@ class AiTier:
 
 
         def infer_mapping(self, use_cases:str):
-            pass
+            # create a graph schema using graph rag
+            self.graphrag.schema.infer(use_cases)
         # Nested Mapping Class
         class Mapping:
             def __init__(self, graphrag: GraphRAG):
@@ -81,7 +82,7 @@ class AiTier:
 
     # Nested Agent Class
     class Agent:
-        def __init__(self, parent: "AiTier"):
+        def __init__(self, parent: "AITier"):
             """
             Initializes the Agent interface for interacting with the AI Tier's knowledge graph and external tools.
             """

@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from neo4j import GraphDatabase
 
-from graph_schema import GraphSchema
+from graphrag.graph_schema import GraphSchema
 from graphrag import GraphRAG
 
 

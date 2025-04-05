@@ -1,5 +1,5 @@
 import unittest
-from utils import format_table_as_markdown_preview
+from graphrag.utils import format_table_as_markdown_preview
 
 
 class TestFormatAsMarkdownTable(unittest.TestCase):

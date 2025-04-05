@@ -7,8 +7,8 @@ from neo4j import RoutingControl
 from pydantic import BaseModel, Field
 from tqdm import tqdm
 
-from graph_schema import NodeSchema, RelationshipSchema
-from source_metadata import SourceType, TransformType, LoadType, prepare_source_metadata
+from graphrag.graph_schema import NodeSchema, RelationshipSchema
+from graphrag.source_metadata import SourceType, TransformType, LoadType, prepare_source_metadata
 
 
 def chunks(xs, n=10_000):

@@ -8,8 +8,8 @@ from pydantic import BaseModel
 from snowflake.snowpark import Session
 from snowflake.snowpark.exceptions import SnowparkClientException
 
-from source_metadata import SourceType, TransformType
-from table_mapping import NodeTableMapping, RelTableMapping
+from graphrag.source_metadata import SourceType, TransformType
+from graphrag.table_mapping import NodeTableMapping, RelTableMapping
 
 
 class SourceEntitySchema(BaseModel):

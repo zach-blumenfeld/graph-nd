@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from snowflake.snowpark import Session
 from typing import List, Dict
 
-from data_source import SnowflakeDB
+from ai_tier.data_source import SnowflakeDB
 
 # Load environment variables from a .env file
 load_dotenv()
