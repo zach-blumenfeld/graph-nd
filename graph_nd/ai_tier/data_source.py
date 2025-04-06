@@ -4,7 +4,7 @@ from enum import Enum
 
 import pandas as pd
 import snowflake
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from snowflake.snowpark import Session
 from snowflake.snowpark.exceptions import SnowparkClientException
 
@@ -28,10 +28,58 @@ class TextMapping(BaseModel):
     nodesOnly: bool
     #subsets
 
+class LLMTransformType(Enum):
+    """
+    Enumeration that represents different types of transformations or mappings
+    that can be performed on source data by LLMs.
+    Provide a standardized way to describe and categorize these types of transformations.
+    Attributes:
+        LLM_TABLE_MAPPING_TO_NODE (str): A table that maps to a single entity (i.e. node) from the graphSchema
+        LLM_TABLE_MAPPING_TO_NODES_AND_RELATIONSHIPS (str): A table that maps to one or more relationships between nodes in the graphSchema
+        LLM_TEXT_EXTRACTION_TO_NODES (str): Text content that maps to one or more nodes in the graphSchema
+        LLM_TEXT_EXTRACTION_TO_NODES_AND_RELATIONSHIPS (str): Text that maps to nodes and one or more relationships between nodes in the graphSchema
+    """
+    LLM_TABLE_MAPPING_TO_NODE = "TABLE_MAPPING_TO_NODE"
+    LLM_TABLE_MAPPING_TO_NODES_AND_RELATIONSHIPS = "TABLE_MAPPING_TO_NODES_AND_RELATIONSHIPS"
+    LLM_TEXT_EXTRACTION_TO_NODES = "TEXT_EXTRACTION_TO_NODES"
+    LLM_TEXT_EXTRACTION_TO_NODES_AND_RELATIONSHIPS = "TEXT_EXTRACTION_TO_NODES_AND_RELATIONSHIPS"
+
+class SourceMappingDirective(BaseModel):
+    """
+    Specifies a detailed directive for mapping data from a data source entity to the target graphSchema.
+    """
+    data_source_name: str = Field(..., description="The unique name of the data source from where the entity originates. Used to retrieve from the data source index later.")
+    entity_name: str = Field(..., description="The specific name of the entity such as the table name or name of text body document. Used to retrieve the entity index later.")
+    mapping_type: LLMTransformType = Field(..., description="Type of transformation/mapping to apply")
+    mapping_directions: str = Field(..., description="detailed description of how the entity should be "
+                                                     "transformed or mapped to the target. "
+                                                     "Another LLM will conduct the mapping by only reading the "
+                                                     "GraphSchema and this SourceMappingDirective in isolation."
+                                                     "The description must be detailed enough for the LLM to conduct the mapping correctly "
+                                                     "including target node labels, relationship types, and properties.")
+
+class SourceMappingDirectives(BaseModel):
+    """
+    Collection of source mapping directives.
+    """
+    source_mapping_directives: List[SourceMappingDirective] = Field(..., description="List of SourceMappingDirectives")
+
+#TODO: We need a way to subset the graph schema for text mapping -> extend graphrag for this
+class SourceTextMapping(BaseModel):
+    data_source_name: str
+    entity_name: str
+    nodes_only: bool
+    # subset
+
 class SourceMapping(BaseModel):
-    source_name: str
+    data_source_name: str
+    entity_name: str
     mapping_type: TransformType
     mapping: Union[TextMapping, NodeTableMapping, RelTableMapping]
+
+class SourceMappings(BaseModel):
+    mappings: List[SourceMapping]
+
 
 # Abstract Base Class for DataSource
 class DataSource(ABC):
@@ -40,6 +88,13 @@ class DataSource(ABC):
     def schema(self) -> SourceSchema:
         """
         Retrieves the schema of the data source
+        """
+        pass
+
+    @abstractmethod
+    def get_table_schema(self, name: str) -> SourceEntitySchema:
+        """
+        Retrieves a table schema from the data source.
         """
         pass
 
@@ -78,8 +133,16 @@ class DataSource(ABC):
         """
         pass
 
+    @abstractmethod
+    def unique_name(self) -> str:
+        """
+        Generate a unique name for the data source.
+        Subclasses must implement this method to define what makes the data source unique.
+        """
+        pass
 
 
+# noinspection SqlNoDataSourceInspection
 class SnowflakeDB(DataSource):
     """
     Data Source for a Snowflake Database using Snowpark.
@@ -100,6 +163,22 @@ class SnowflakeDB(DataSource):
         }
         self.session = Session.builder.configs(self.config).create()
         self.mappings = {}  # To store source mappings
+
+    def _get_table_schema(self, name: str) -> SourceEntitySchema:
+        # Describe the table structure using Pandas
+        fields = self.session.sql(f"DESCRIBE TABLE {name}").collect()
+        fields_df = pd.DataFrame([row.as_dict() for row in fields])
+
+        # Only keep relevant columns and convert to dict
+        table_schema = fields_df[["name", "type", "primary key", "unique key", "comment"]].to_dict(orient="records")
+
+        # Add SourceEntitySchema for the table
+        return SourceEntitySchema(
+            name=name,
+            description='',
+            type=SourceType.STRUCTURED_TABLE_RDBMS,
+            entity_schema=table_schema
+        )
 
     def schema(self) -> SourceSchema:
         """
@@ -130,23 +209,12 @@ class SnowflakeDB(DataSource):
         entities = []
 
         for _, table in tables_df.iterrows():
-            table_name = table["name"]
-            table_comment = table["comment"] or ""  # Use comment if available or default to empty
+            entity_schema = self._get_table_schema(table["name"])
 
-            # Describe the table structure using Pandas
-            fields = self.session.sql(f"DESCRIBE TABLE {table_name}").collect()
-            fields_df = pd.DataFrame([row.as_dict() for row in fields])
-
-            # Only keep relevant columns and convert to dict
-            table_schema = fields_df[["name", "type", "primary key", "unique key", "comment"]].to_dict(orient="records")
+            entity_schema.description = table["comment"] or ""  # Use comment if available or default to empty
 
             # Add SourceEntitySchema for the table
-            entities.append(SourceEntitySchema(
-                name=table_name,
-                description=table_comment,
-                type=SourceType.STRUCTURED_TABLE_RDBMS,
-                entity_schema=table_schema
-            ))
+            entities.append(entity_schema)
 
         # Step 3: Return a SourceSchema including database details
         return SourceSchema(
@@ -154,6 +222,16 @@ class SnowflakeDB(DataSource):
             description=schema_comment,
             entities=entities
         )
+
+    def get_table_schema(self, name: str) -> SourceEntitySchema:
+        entity_schema = self._get_table_schema(name)
+        table_comment_query = f"""
+            SELECT COMMENT FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_NAME='{name.upper()}' AND  TABLE_SCHEMA='{self.config['schema'].upper()}'
+        """
+        comment_result = self.session.sql(table_comment_query).collect()
+        entity_schema.description = comment_result[0]["COMMENT"] if comment_result else ""
+        return entity_schema
 
     def get_table(self, name: str) -> List[Dict[str, Any]]:
         """
@@ -192,6 +270,10 @@ class SnowflakeDB(DataSource):
         """
         table_name = mapping.table_name  # Assume mapping has an attribute 'table_name'
         self.mappings[table_name] = mapping
+
+    def unique_name(self) -> str:
+        # Compose a unique name using relevant attributes
+        return f"Snowflake::{self.config['account']}.{self.config['database']}.{self.config['schema']}"
 
     def close(self):
         """

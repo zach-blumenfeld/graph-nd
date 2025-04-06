@@ -41,7 +41,7 @@ def prepare_source_metadata(
         )
 
 
-class SourceType(Enum):
+class SourceType(str, Enum):
     STRUCTURED_TABLE = "STRUCTURED_TABLE"
     STRUCTURED_TABLE_RDBMS = "STRUCTURED_TABLE_RDBMS"
     STRUCTURED_TABLE_CSV = "STRUCTURED_TABLE_CSV"

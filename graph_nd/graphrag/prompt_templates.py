@@ -16,6 +16,22 @@ format the name as <originalPropertyName>_textembedding, and add a description t
 {context}
 ''')
 
+SCHEMA_FROM_USE_CASE_MAPPING_TEMPLATE = PromptTemplate.from_template('''
+Generate a graphSchema from the below description of the use case and external Source Data Models.
+You can only create elements in the graph schema that can be mapped from the source data models.
+You do not need to map everything in the source data models. Take a minimalist approach for mapping.  Less is better.
+Do add descriptions in the graphSchema to help clarify the meaning of nodes, relationships, and properties and how to use them to fulfill the use case.  
+
+For any string properties that may require semantic search, include an additional textEmbedding and fullText search field,
+format the name as <originalPropertyName>_textembedding|fulltext, and add a description to to guide semantic search:
+
+# Use Case:
+{useCase}
+
+# External Source Data Models:
+{sourceDataModels}
+''')
+
 SCHEMA_FROM_DICT_TEMPLATE = PromptTemplate.from_template('''
 Craft a graphSchema from the following json-like definition.  
 Stay true to this definition when converting to graphSchema.  don't violate it.
