@@ -1,5 +1,6 @@
 import unittest
 import os
+from pprint import pprint
 from unittest.mock import Mock
 
 from dotenv import load_dotenv
@@ -8,8 +9,9 @@ from graph_nd import GraphRAG, AITier
 from snowflake.snowpark import Session  # Replace with actual Snowflake connection class
 
 from graph_nd.ai_tier.ai_tier import Models
-from graph_nd.ai_tier.data_source import SnowflakeDB
+from graph_nd.ai_tier.data_source import SnowflakeDB, SourceMappingDirectives, SourceMappings
 from graph_nd.graphrag.graph_schema import GraphSchema  # Replace with actual import
+from graph_nd.graphrag.utils import run_async_function
 
 
 # noinspection SqlNoDataSourceInspection
@@ -73,6 +75,21 @@ class TestAITierInferGraphSchema(unittest.TestCase):
             knowledge_graph=mock_kg_client,
             data_sources=[snow_product_ds, snow_bom_ds],
         )
+
+        # Description use case combining two data sources
+        cls.use_case = """
+        which customers depend on which suppliers?
+        """
+
+        # Infer graph schema
+        cls.ai_tier.knowledge.infer_graph_schema(cls.use_case)
+
+        # Infer mapping directives
+        cls.mapping_directives: SourceMappingDirectives = cls.ai_tier.knowledge.infer_mapping_directives(cls.use_case)
+
+        # Create mappings
+        cls.mappings: SourceMappings = run_async_function(cls.ai_tier.knowledge.create_mappings_from_directives,
+                                                          cls.mapping_directives)
 
 
     @staticmethod
@@ -163,12 +180,6 @@ class TestAITierInferGraphSchema(unittest.TestCase):
         """
         Test inferring a graph schema combining product and BoM data using the LLM.
         """
-        # Description combining the two data sources
-        use_case = """
-        which customers depend on which suppliers?
-        """
-        # Infer graph schema using the LLM and GraphRAG
-        self.ai_tier.knowledge.infer_graph_schema(use_case)
         graph_schema = self.ai_tier.knowledge.graphrag.schema.schema
 
         # Validate the inferred schema
@@ -182,6 +193,15 @@ class TestAITierInferGraphSchema(unittest.TestCase):
         # self.assertIn("Suppliers", [node.label for node in inferred_schema.nodes])
         # self.assertIn("CONTAIN", [rel.type for rel in inferred_schema.relationships])
         # self.assertIn("SUPPLY", [rel.type for rel in inferred_schema.relationships])
+
+    def test_infer_mapping_directives(self):
+        print(self.mapping_directives.model_dump_json(indent=4))
+        self.assertGreater(len(self.mapping_directives.source_mapping_directives), 4)
+
+    def test_create_mapping_from_directives(self):
+        print(self.mappings.model_dump_json(indent=4))
+        self.assertEqual(len(self.mapping_directives.source_mapping_directives), len(self.mappings.mappings))
+
 
     @classmethod
     def tearDownClass(cls):

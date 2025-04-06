@@ -110,7 +110,7 @@ class AITier:
 
         async def create_node_table_mapping_from_directive(self, source_mapping_directive: SourceMappingDirective) -> NodeTableMapping:
             name = source_mapping_directive.entity_name
-            table_schema = self.data_sources[source_mapping_directive.data_source_name].get_table_schema(name).model_dump()
+            table_schema = self.data_sources[source_mapping_directive.data_source_name].get_table_schema(name).model_dump_json(indent=4)
             prompt = NODE_MAPPING_FROM_DIR_TEMPLATE.invoke({'tableName': name,
                                                    'directions': source_mapping_directive.mapping_directions,
                                                    'tableSchema': table_schema,
@@ -120,7 +120,7 @@ class AITier:
 
         async def create_node_rel_table_mapping_from_directive(self, source_mapping_directive: SourceMappingDirective) -> RelTableMapping:
             name = source_mapping_directive.entity_name
-            table_schema = self.data_sources[source_mapping_directive.data_source_name].get_table_schema(name).model_dump()
+            table_schema = self.data_sources[source_mapping_directive.data_source_name].get_table_schema(name).model_dump_json(indent=4)
             prompt = RELATIONSHIPS_MAPPING_FROM_DIR_TEMPLATE.invoke({'tableName': name,
                                                    'directions': source_mapping_directive.mapping_directions,
                                                    'tableSchema': table_schema,
@@ -151,11 +151,11 @@ class AITier:
                     mapping=mapping
                 )
 
-        async def create_mappings_from_directives(self, source_mapping_directives: List[SourceMappingDirective], max_workers=10) -> SourceMappings:
+        async def create_mappings_from_directives(self, source_mapping_directives: SourceMappingDirectives, max_workers=10) -> SourceMappings:
             # Create a semaphore with the desired number of workers
             semaphore = asyncio.Semaphore(max_workers)
             # Create tasks with the semaphore
-            tasks = [self.create_mapping_from_directive(smd, semaphore) for smd in source_mapping_directives]
+            tasks = [self.create_mapping_from_directive(smd, semaphore) for smd in source_mapping_directives.source_mapping_directives]
             # Explicitly update progress using `tqdm` as tasks complete
             results = []
             with tqdm_async(total=len(tasks), desc="Creating Source Mappings From Directives") as pbar:

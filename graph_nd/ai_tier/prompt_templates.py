@@ -2,7 +2,7 @@ from langchain_core.prompts import PromptTemplate
 
 
 NODE_MAPPING_FROM_DIR_TEMPLATE = PromptTemplate.from_template('''
-The tableSchema represents the schema for a table entity that we need to map to a node in the below graphSchema.  
+The tableSchema represents the schema for a table entity that we need to map to a node in the below graphSchema. 
 
 ## Additional Directions
 {directions}
@@ -16,7 +16,7 @@ Table Name: {tableName}
 ''')
 
 RELATIONSHIPS_MAPPING_FROM_DIR_TEMPLATE = PromptTemplate.from_template('''
-The tableSchema represents the schema for a table for 1 or more relationships between entities that we need to map to the below graphSchema.  
+The tableSchema represents the schema for a table for 1 or more relationships between entities that we need to map to the below graphSchema.
 
 ## Additional Directions
 {directions}
