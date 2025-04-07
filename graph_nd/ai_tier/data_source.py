@@ -106,9 +106,10 @@ class DataSource(ABC):
         pass
 
     @abstractmethod
-    def get_text_doc(self, name: str) -> str:
+    def get_text_doc(self, name: str) -> List[str]:
         """
         Retrieves a text document from the data source.
+        Currently, DataSource Implementation is responsible for chunking strategy
         """
         pass
 
@@ -244,11 +245,11 @@ class SnowflakeDB(DataSource):
         except SnowparkClientException as e:
             raise RuntimeError(f"Failed to fetch table '{name}': {str(e)}")
 
-    def get_text_doc(self, name: str) -> str:
+    def get_text_doc(self, name: str) -> List[str]:
         """
-        SnowflakeDB is not designed for text documents. Raise an error.
+        Not Yet Supported
         """
-        raise NotImplementedError(f"{self.__class__.__name__} does not support get_text_doc().")
+        raise NotImplementedError(f"{self.__class__.__name__} does not yet support get_text_doc().")
 
     def get_mapping(self, name: str) -> SourceMapping:
         """

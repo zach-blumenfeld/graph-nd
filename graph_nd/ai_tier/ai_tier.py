@@ -1,5 +1,6 @@
 import asyncio
 import json
+from datetime import datetime
 from typing import Optional, List
 
 from neo4j import Driver
@@ -11,7 +12,7 @@ from graph_nd.ai_tier.data_source import DataSource, SourceMappings, SourceMappi
 from graph_nd import GraphRAG
 from graph_nd.ai_tier.prompt_templates import SCHEMA_MAPPING_DIRECTIVES_TEMPLATE, \
     RELATIONSHIPS_MAPPING_FROM_DIR_TEMPLATE, NODE_MAPPING_FROM_DIR_TEMPLATE
-from graph_nd.graphrag.source_metadata import TransformType
+from graph_nd.graphrag.source_metadata import TransformType, SourceType, LoadType
 from graph_nd.graphrag.table_mapping import NodeTableMapping, RelTableMapping
 from graph_nd.graphrag.utils import run_async_function
 
@@ -91,22 +92,6 @@ class AITier:
                                                                                               method="function_calling")
             self.data_sources: dict[str, DataSource] = tier.data_sources
             self.mappings: SourceMappings = SourceMappings(mappings=[])
-
-        def sync(self):
-            """
-            Syncs all data sources into the knowledge graph.
-            """
-            # for source in self.data_sources:
-            #     if source.type() == DataSourceType.RDBMS:
-            #         schema = source.schema()
-            #         for table_name in schema.get("tables", []):
-            #             data = source.get(table_name)
-            #             self.graphrag.data.merge_node_table(data)
-            #     elif source.type() == DataSourceType.TEXT_DOCUMENTS:
-            #         # Handle text document merging
-            #         for doc_name in source.storage_client.list_files():
-            #             doc_text = source.get(doc_name)
-            #             self.graphrag.data.merge_texts([doc_text])
 
         async def create_node_table_mapping_from_directive(self, source_mapping_directive: SourceMappingDirective) -> NodeTableMapping:
             name = source_mapping_directive.entity_name
@@ -189,6 +174,79 @@ class AITier:
 
             #create mappings
             self.mappings = run_async_function(self.create_mappings_from_directives, mappings_directives, max_workers)
+
+        def sync(self, method="merge", skip_reset_confirmation=False):
+            """
+            Synchronizes AI knowledge with data sources.
+
+            Args:
+                method (str): Determines the sync behavior. Options:
+                    - "merge": Adds and updates knowledge from the source without removing
+                               any data.  For example, if some data in sources was deleted this would not be propagated to knowledge
+                    - "reset": deletes all knowledge then re-merges data. Captures deletes in data sources. Use with caution. Recommended to back up your graphDB first.
+                skip_reset_confirmation (bool): If true skips confirmation prompt for reset method. Default is False
+
+            Raises:
+                ValueError: If an unsupported method is provided.
+            """
+
+            if method == "reset":
+                self.graphrag.data.nuke(skip_reset_confirmation)
+            elif method != "merge":
+                raise ValueError(f"Unsupported method: {method}. Supported methods are 'merge' and 'reset'.")
+
+            for mapping in self.mappings.mappings:
+                data_source_name = mapping.data_source_name
+                entity_name = mapping.entity_name
+                source_metadata = {
+                    #"id": f"merge_nodes_from_table_{data_source_name}.{entity_name}_at_{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                    #"sourceType": SourceType.STRUCTURED_TABLE.value,
+                    "transformType": mapping.mapping_type.value,
+                    #"loadType": LoadType.MERGE_NODES.value,
+                    "name": entity_name,
+                    #"description": mapping.tableDescription,
+                    "dataSource": data_source_name,
+                }
+                if mapping.mapping_type == TransformType.LLM_TABLE_MAPPING_TO_NODE:
+                    table_schema = self.data_sources[data_source_name].get_table_schema(entity_name)
+                    source_metadata['id'] = f"merge_nodes_from_table_{data_source_name}.{entity_name}_at_{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                    source_metadata['sourceType'] = table_schema.type.value
+                    source_metadata['loadType'] = LoadType.MERGE_NODES.value
+                    source_metadata['description'] =  table_schema.description
+
+                    table = self.data_sources[data_source_name].get_table(entity_name)
+                    self.graphrag.data.merge_node_table(table, mapping.mapping, source_metadata)
+                    
+                elif mapping.mapping_type == TransformType.LLM_TABLE_MAPPING_TO_NODES_AND_RELATIONSHIPS:
+                    table_schema = self.data_sources[data_source_name].get_table_schema(entity_name)
+                    source_metadata['id'] = f"merge_nodes_and_rels_from_table_{data_source_name}.{entity_name}_at_{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                    source_metadata['sourceType'] = table_schema.type.value
+                    source_metadata['loadType'] = LoadType.MERGE_NODES_AND_RELATIONSHIPS.value
+                    source_metadata['description'] = table_schema.description
+
+                    table = self.data_sources[data_source_name].get_table(entity_name)
+                    self.graphrag.data.merge_relationships_from_table(table, mapping.mapping, source_metadata)
+
+                elif mapping.mapping_type == TransformType.LLM_TEXT_EXTRACTION_TO_NODES:
+                    source_metadata['id'] = f"merge_nodes_from_text_{data_source_name}.{entity_name}_at_{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                    source_metadata['sourceType'] = SourceType.UNSTRUCTURED_TEXT.value
+                    source_metadata['loadType'] = LoadType.MERGE_NODES.value
+                    source_metadata['description'] = "text extraction" #TODO - We need to Be able To get From DataSource
+
+                    texts =  self.data_sources[data_source_name].get_text_doc(entity_name)
+                    self.graphrag.data.merge_texts(texts, entity_name, nodes_only=True, source_metadata=source_metadata)
+
+                elif mapping.mapping_type == TransformType.LLM_TEXT_EXTRACTION_TO_NODES_AND_RELATIONSHIPS:
+                    source_metadata['id'] = f"merge_nodes_and_rels_from_text_{data_source_name}.{entity_name}_at_{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                    source_metadata['sourceType'] = SourceType.UNSTRUCTURED_TEXT.value
+                    source_metadata['loadType'] = LoadType.MERGE_NODES_AND_RELATIONSHIPS.value
+                    source_metadata['description'] = "text extraction"  # TODO - We need to Be able To get From DataSource
+
+                    texts = self.data_sources[data_source_name].get_text_doc(entity_name)
+                    self.graphrag.data.merge_texts(texts, entity_name, nodes_only=False, source_metadata=source_metadata)
+
+                else:
+                    raise ValueError(f"Unsupported TransformType: {mapping.mapping_type}.")
 
     # Nested Agent Class
     class Agent:

@@ -6,16 +6,16 @@ from unittest.mock import Mock
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from graph_nd import GraphRAG, AITier
-from snowflake.snowpark import Session  # Replace with actual Snowflake connection class
+from snowflake.snowpark import Session
 
 from graph_nd.ai_tier.ai_tier import Models
 from graph_nd.ai_tier.data_source import SnowflakeDB, SourceMappingDirectives, SourceMappings
-from graph_nd.graphrag.graph_schema import GraphSchema  # Replace with actual import
+from graph_nd.graphrag.graph_schema import GraphSchema
 from graph_nd.graphrag.utils import run_async_function
 
 
 # noinspection SqlNoDataSourceInspection
-class TestAITierInferGraphSchema(unittest.TestCase):
+class TestAITierInferMappingInternals(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """
