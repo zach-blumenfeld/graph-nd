@@ -4,8 +4,8 @@ import unittest
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
 
-from graphrag import GraphRAG
-from graph_schema import NodeSchema, PropertySchema, RelationshipSchema, QueryPattern, GraphSchema
+from graph_nd import GraphRAG
+from graph_nd.graphrag.graph_schema import NodeSchema, PropertySchema, RelationshipSchema, QueryPattern, GraphSchema
 
 
 class TestGraphRAGMergeNodeRels(unittest.TestCase):

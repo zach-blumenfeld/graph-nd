@@ -3,7 +3,7 @@ from typing import Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
-from graph_schema import GraphSchema
+from graph_nd.graphrag.graph_schema import GraphSchema
 
 class TableTypeEnum(str, Enum):
     SINGLE_NODE = 'SINGLE_NODE'
@@ -70,8 +70,8 @@ class RelTableMapping(BaseModel):
     """
     The mapping of table columns to graph relationships.
     """
-    tableName: str = Field(description="the name of the table")
-    tableDescription: str = Field(description="description of the table")
+    tableName: str = Field(..., description="the name of the table")
+    tableDescription: str = Field(default='', description="description of the table")
     relationshipMaps: List[RelationshipMap] = Field(description="the relationships and their nodes that this table maps to")
 
     def convert_to_triple_records(self, table_record: Dict) -> Dict[str, Tuple[Dict, Dict, Dict]]:
@@ -87,5 +87,5 @@ class NodeTableMapping(NodeMap):
     """
     The mapping of table columns to a graph node.
     """
-    tableName: str = Field(description="the name of the table")
-    tableDescription: str = Field(description="description of the table")
+    tableName: str = Field(..., description="the name of the table")
+    tableDescription: str = Field(default='', description="description of the table")

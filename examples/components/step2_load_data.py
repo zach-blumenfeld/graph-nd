@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from graphrag import GraphRAG
+from graph_nd import GraphRAG
 from neo4j import GraphDatabase
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 

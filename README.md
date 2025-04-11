@@ -73,7 +73,7 @@ The sequence of components that depend on silicon wafers is as follows:
 Here’s a step-by-step example to using Graph-ND:
 1. **Setup**: Instantiate and configure the GraphRAG class. GraphRAG uses Langchain under-the-hood so you can use any model(s) with Langchain support. 
 ``` python
-from graphrag import GraphRAG
+from graph_nd import GraphRAG
 from neo4j import GraphDatabase
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 

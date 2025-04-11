@@ -1,8 +1,8 @@
 import json
 from unittest import TestCase
 from pathlib import Path
-from graph_schema import GraphSchema, NodeSchema
-from graph_data import NodeData  
+from graph_nd.graphrag.graph_schema import GraphSchema, NodeSchema
+from graph_nd.graphrag.graph_data import NodeData
 
 # Filepath for `movie-schema.json`
 SCHEMA_FILE_PATH = Path("data/movie-schema.json")
