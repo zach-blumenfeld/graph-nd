@@ -17,12 +17,6 @@ from graph_nd.graphrag.table_mapping import NodeTableMapping, RelTableMapping
 from graph_nd.graphrag.utils import run_async_function
 
 
-class TrueOrFalse(BaseModel):
-    """
-    Binary true or false response
-    """
-    answer: bool = Field(..., description="True or False")
-
 # Models class to package LLMs and Embedders. This will be made more sophisticated later
 class Models:
     def __init__(self, llm, embedder, llm_knowledge_mapping=None):
@@ -34,7 +28,7 @@ class Models:
             else llm
         )
 
-
+#TODO: This class is designed a bit wierd currently.  There are reasons for that - we are tyring to use different models between agent and knowledge eventually and separate responsibilities
 class AITier:
     def __init__(self, models: Models, knowledge_graph: Driver, data_sources: Optional[List[DataSource]] = None):
 
@@ -248,7 +242,7 @@ class AITier:
                 else:
                     raise ValueError(f"Unsupported TransformType: {mapping.mapping_type}.")
 
-    # Nested Agent Class
+    # create react agent
     class Agent:
         def __init__(self, ai_tier: "AITier", models: Models):
             """
@@ -259,15 +253,13 @@ class AITier:
             self.data_source_map: dict[str, DataSource] = ai_tier.data_sources
 
 
-        def invoke(self, question: str) -> str:
+        def create_react_agent(self, **kwargs):
             """
-            Invokes the agent to handle a question using the knowledge graph.
+            Creates new knowledge agent
             """
-            return self.parent.knowledge.graphrag.agent(question)
+            # Get model if not included
+            if "model" not in kwargs:
+                kwargs["model"] = self.models.llm
 
-        def add_tool(self, tool_config: dict):
-            """
-            Adds a tool configuration to the agent.
-            """
-            pass
+            return self.parent.knowledge.graphrag.create_react_agent(**kwargs)
 
