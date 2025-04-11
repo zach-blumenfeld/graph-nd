@@ -4,10 +4,12 @@ import os
 import uuid
 from datetime import datetime
 from pprint import pprint
-from typing import Dict, List, Tuple, Any, Optional, Union
+from typing import Dict, List, Tuple, Any, Optional, Union, Sequence, Callable
 
 from langchain_core.messages import SystemMessage, HumanMessage
-from langgraph.prebuilt import create_react_agent
+from langchain_core.tools import BaseTool
+from langgraph.graph.graph import CompiledGraph
+from langgraph.prebuilt import create_react_agent, ToolNode
 from neo4j import RoutingControl
 from tqdm import tqdm
 from tqdm.asyncio import tqdm as tqdm_async
@@ -21,8 +23,8 @@ from graph_nd.graphrag.table_mapping import TableTypeEnum, TableType, NodeTableM
 from graph_nd.graphrag.prompt_templates import SCHEMA_FROM_DESC_TEMPLATE, SCHEMA_FROM_SAMPLE_TEMPLATE, \
     SCHEMA_FROM_DICT_TEMPLATE, \
     TABLE_TYPE_TEMPLATE, NODE_MAPPING_TEMPLATE, RELATIONSHIPS_MAPPING_TEMPLATE, TEXT_EXTRACTION_TEMPLATE, \
-    QUERY_TEMPLATE, AGG_QUERY_TEMPLATE, AGENT_SYSTEM_TEMPLATE, TEXT_NODE_EXTRACTION_TEMPLATE, \
-    SCHEMA_FROM_USE_CASE_MAPPING_TEMPLATE
+    QUERY_TEMPLATE, AGG_QUERY_TEMPLATE, INTERNAL_AGENT_SYSTEM_TEMPLATE, TEXT_NODE_EXTRACTION_TEMPLATE, \
+    SCHEMA_FROM_USE_CASE_MAPPING_TEMPLATE, AGENT_SYSTEM_TEMPLATE
 from graph_nd.graphrag.utils import read_csv_preview, read_csv, load_pdf, remove_key_recursive, run_async_function
 import nest_asyncio
 
@@ -774,7 +776,7 @@ class GraphRAG:
         #turn into formated string and return
         return json.dumps(res, indent=4)
 
-    def create_or_replace_agent(self):
+    def _create_or_replace_internal_agent(self):
         tools = [self.node_search, self.query, self.aggregate]
         self.agent_executor = create_react_agent(self.llm, tools)
 
@@ -787,8 +789,8 @@ class GraphRAG:
 
         """
         if not self.agent_executor:
-            self.create_or_replace_agent()
-        system_instruction = AGENT_SYSTEM_TEMPLATE.invoke({'searchConfigs':self.get_search_configs_prompt(),
+            self._create_or_replace_internal_agent()
+        system_instruction = INTERNAL_AGENT_SYSTEM_TEMPLATE.invoke({'searchConfigs':self.get_search_configs_prompt(),
                                                         'graphSchema':self.schema.schema.prompt_str()}).to_string()
         #print(system_instruction)
         for step in self.agent_executor.stream(
@@ -797,3 +799,49 @@ class GraphRAG:
         ):
             step["messages"][-1].pretty_print()
 
+    def create_react_agent(self, **kwargs):
+        """
+        A factory for creating Langgraph Agents backed with GraphRAG and Knowledge Graph
+
+        Arguments:
+            **kwargs: Keyword arguments passed to the original `create_react_agent`.
+
+        Returns:
+            The result of invoking `create_react_agent`.
+        """
+        if "tools" in kwargs:
+            other_tools = kwargs["tools"]
+            if not isinstance(other_tools, Sequence):
+                raise ValueError(f"'tools' must be a Sequence, but got {type(other_tools).__name__} instead.")
+            for index, item in enumerate(other_tools):
+                if not isinstance(item, (BaseTool, Callable)):
+                    raise ValueError(
+                        f"Invalid item at index {index}: {item} (type: {type(item).__name__}). "
+                        f"'tools' must only contain instances of BaseTool or Callable."
+                    )
+        else:
+            other_tools = []
+
+        # Combine tools
+        all_tools = [self.node_search, self.query, self.aggregate] + other_tools
+
+        # Inject the combined tools into `kwargs`
+        kwargs["tools"] = all_tools
+
+        # Inject prompt into kwargs
+        if "prompt" in kwargs:
+            if kwargs["prompt"] is None or not isinstance(kwargs["prompt"], str):
+                raise ValueError("`prompt` must be a non-null string.")
+            additional_instruction = "## Additional Instructions\n" + kwargs["prompt"]
+        else:
+            additional_instruction = ""  # Default to an empty string if `prompt` key is not in kwargs
+
+        # Get model if not included
+        if "model" not in kwargs:
+            kwargs["model"] = self.llm
+
+        kwargs["prompt"] = AGENT_SYSTEM_TEMPLATE.invoke({'searchConfigs':self.get_search_configs_prompt(),
+                                                           'graphSchema':self.schema.schema.prompt_str(),
+                                                           'additionalInstructions': additional_instruction}).to_string()
+
+        return create_react_agent(**kwargs)
