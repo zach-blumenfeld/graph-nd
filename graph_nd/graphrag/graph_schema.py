@@ -1,9 +1,10 @@
 import json
 
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any, Union, List
+from typing import Optional, Dict, Any, Union, List, Tuple
 import yaml  # Import PyYAML for YAML serialization
 
+from graph_nd.graphrag.utils import validate_list_type
 
 
 class Element(BaseModel):
@@ -59,6 +60,22 @@ class RelationshipSchema(Element):
     properties: List[PropertySchema] = Field(
         default_factory=list, description="Properties for the relationship. must include at least the key property"
     )
+
+    #TODO: We probably need better data structures to index rather than scanning lists...but we shouldn't be doing this a lot at runtime so not prioritizing currently
+    def get_query_pattern(self, start_node_label:str, end_node_label:str) -> QueryPattern:
+        if self.queryPatterns:
+            for pattern in self.queryPatterns:
+                if pattern.startNode == start_node_label and pattern.endNode == end_node_label:
+                    return pattern
+        raise ValueError(
+            f"Query pattern not found for start_node: '{start_node_label}' and end_node: '{end_node_label}'")
+
+    def has_query_pattern(self, start_node_label:str, end_node_label:str) -> bool:
+        if self.queryPatterns:
+            for pattern in self.queryPatterns:
+                if pattern.startNode == start_node_label and pattern.endNode == end_node_label:
+                    return True
+        return False
 
     def query_model_dump(self, **kwargs) -> dict:
         """
@@ -122,6 +139,24 @@ class GraphSchema(Element):
                 return node
         raise ValueError(f"No NodeSchema found with the label '{label}'")
 
+    def get_relationship_schema_by_type(self, rel_type: str) -> RelationshipSchema:
+        """
+        Retrieve a specific relationship schema by its type.
+        :param rel_type: The type of the relationship to retrieve.
+        :return: The RelationshipSchema that matches the criteria.
+        :raises ValueError: If no matching RelationshipSchema is found.
+        """
+        # Loop through all relationships in the graph schema to check for matches
+        for relationship in self.relationships:
+            # Check if the relationship type matches
+            if relationship.type == rel_type:
+                        return relationship
+
+        # If no match is found, raise an error
+        raise ValueError(
+            f"No RelationshipSchema found with type '{rel_type}'"
+        )
+
     def get_relationship_schema(self, rel_type: str, start_node_label: str, end_node_label: str) -> RelationshipSchema:
         """
         Retrieve a specific relationship schema by its type and start and end node labels.
@@ -168,3 +203,95 @@ class GraphSchema(Element):
                 if search_field.type == "TEXT_EMBEDDING":
                     res.append(search_field.name)
         return res
+
+    #TODO: Add property filters
+    def subset(self, nodes: Union[str, List[str]]=None,
+               patterns: Union[Tuple[str, str, str], List[Tuple[str, str, str]]]=None,
+               relationships: Union[str, List[str]]=None,
+               custom_description:str = None
+               ) -> "GraphSchema":
+        """
+        Generates a subset of the graph schema based on provided nodes, relationship types, and/or patterns.
+
+        This method filters and retrieves a subset of the graph schema by selecting specific
+        node schemas and relationship schemas that satisfy the criteria defined by the inputs.
+        At least one of `nodes`, `patterns`, or `relationships` must be specified, otherwise an
+        exception will be raised.
+
+        Parameters:
+        nodes: Union[str, List[str]], optional
+            A node or list of node labels to include in the subset. If provided, the node schemas
+            corresponding to these nodes will be retrieved.
+
+        patterns: Union[Tuple[str, str, str], List[Tuple[str, str, str]]], optional
+            A pattern or list of patterns defining relationships to filter by. Each pattern is a
+            tuple containing the start node label, relationship type, and end node label. The relevant
+            node schemas and relationship schemas will be included in the subset.
+
+        relationships: Union[str, List[str]], optional
+            A relationship type or list of relationship types to include in the subset. The node and
+            relationship schemas corresponding to these relationships will be retrieved.
+            All query patterns for the relationship type will be included in the subset.
+
+        custom_description: str, optional
+            A custom description for the subsetted graph schema. I
+            f not provided, a default description will be generated based on the current graph schema and provided filters.
+            This will be provided as context for downstream AI tasks.
+
+        Returns:
+        GraphSchema
+            A new GraphSchema instance representing the filtered subset of the graph schema.
+
+        Raises:
+        ValueError
+            If all inputs `nodes`, `patterns`, and `relationships` are None.
+        """
+        #error if all inputs are null
+        if not nodes and not patterns and not relationships:
+            raise ValueError("At least one of nodes, patterns, or relationships must be provided.")
+
+        # get nodes
+        node_schemas = dict()
+        if nodes:
+
+            for node in validate_list_type(nodes, str):
+                node_schemas[node] = self.get_node_schema_by_label(node).model_copy(deep=True)
+
+        # get relationships filtered by query patterns
+        relationship_schemas: Dict[str, RelationshipSchema] = dict()
+        if patterns:
+            for pattern in validate_list_type(patterns, tuple):
+                relationship_schema = self.get_relationship_schema(pattern[1], pattern[0],
+                                                                   pattern[2]).model_copy(deep=True)
+                if pattern[1] in relationship_schemas:
+                    if not relationship_schemas[pattern[1]].has_query_pattern(pattern[0], pattern[2]):
+                        relationship_schemas[pattern[1]].queryPatterns += [relationship_schema.get_query_pattern(pattern[0], pattern[2])]
+                        #populate nodes
+                        if pattern[0] not in node_schemas:
+                            node_schemas[pattern[0]] = self.get_node_schema_by_label(pattern[0]).model_copy(deep=True)
+                        if pattern[2] not in node_schemas:
+                            node_schemas[pattern[2]] = self.get_node_schema_by_label(pattern[2]).model_copy(deep=True)
+                else:
+                    relationship_schema.queryPatterns = [relationship_schema.get_query_pattern(pattern[0], pattern[2])]
+                    relationship_schemas[pattern[1]] = relationship_schema
+                    # populate nodes
+                    if pattern[0] not in node_schemas:
+                        node_schemas[pattern[0]] = self.get_node_schema_by_label(pattern[0]).model_copy(deep=True)
+                    if pattern[2] not in node_schemas:
+                        node_schemas[pattern[2]] = self.get_node_schema_by_label(pattern[2]).model_copy(deep=True)
+
+        # get relationships - note that this will pull all query patterns regardless of previously provided patterns
+        if relationships:
+            for relationship in validate_list_type(relationships, str):
+                relationship_schema = self.get_relationship_schema_by_type(relationship).model_copy(deep=True)
+                relationship_schemas[relationship] = relationship_schema
+                for query_pattern in relationship_schema.queryPatterns:
+                    if query_pattern.startNode not in node_schemas:
+                        node_schemas[query_pattern.startNode] = self.get_node_schema_by_label(query_pattern.startNode).model_copy(deep=True)
+                    if query_pattern.endNode not in node_schemas:
+                        node_schemas[query_pattern.endNode] = self.get_node_schema_by_label(query_pattern.endNode).model_copy(deep=True)
+
+        description = custom_description if custom_description else (
+                self.description + f"\nSubset to just the following nodes: {list(node_schemas.keys())}, "
+                                   f"and relationships: {list(relationship_schemas.keys())}")
+        return GraphSchema(description=description, nodes=list(node_schemas.values()), relationships=list(relationship_schemas.values()))
