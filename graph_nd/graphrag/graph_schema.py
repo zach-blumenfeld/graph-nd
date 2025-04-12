@@ -6,6 +6,55 @@ import yaml  # Import PyYAML for YAML serialization
 
 from graph_nd.graphrag.utils import validate_list_type
 
+class SubSchema:
+    def __init__(self, nodes: Union[str, List[str]] = None,
+                 patterns: Union[Tuple[str, str, str], List[Tuple[str, str, str]]] = None,
+                 relationships: Union[str, List[str]] = None,
+                 description: str = None):
+        """
+        Encapsulates the information required to subset a graph schema and ensures proper validation
+        and conversion for the provided input data. `SubSchema` is used in methods like `GraphSchema.subset` to
+        describe the graph schema filtering criteria.
+
+        Parameters:
+        ----------
+        nodes: Union[str, List[str]], optional
+            A node or list of node labels to include in the subset. If provided, the node schemas
+            corresponding to these nodes will be retrieved.
+
+        patterns: Union[Tuple[str, str, str], List[Tuple[str, str, str]]], optional
+            A pattern or list of patterns defining relationships to filter by. Each pattern is a
+            tuple containing:
+            - Start node label (str)
+            - Relationship type (str)
+            - End node label (str)
+
+            The relevant node schemas and relationship schemas will be included in the subset.
+
+        relationships: Union[str, List[str]], optional
+            A relationship type or list of relationship types to include in the subset.
+            All query patterns for the relationship type (and their start and end nodes) will be included in the subset.
+
+        description: str, optional
+            A custom description for the subsetted graph schema.
+            If not provided, a default description may be generated based on the existing schema and provided subset criteria.
+
+        Raises:
+        ------
+        ValueError
+            If none of `nodes`, `patterns`, or `relationships` are provided.
+        TypeError
+            If any of the inputs are not of the expected type.
+        """
+
+        self.nodes = validate_list_type(nodes, str, "nodes")
+        self.patterns = validate_list_type(patterns, tuple, "patterns")
+        self.relationships = validate_list_type(relationships, str, "relationships")
+        self.description = description
+
+        # Ensure at least one of the inputs is provided
+        if not self.nodes and not self.patterns and not self.relationships:
+            raise ValueError("At least one of nodes, patterns, or relationships must be specified.")
 
 class Element(BaseModel):
     """
@@ -205,38 +254,13 @@ class GraphSchema(Element):
         return res
 
     #TODO: Add property filters
-    def subset(self, nodes: Union[str, List[str]]=None,
-               patterns: Union[Tuple[str, str, str], List[Tuple[str, str, str]]]=None,
-               relationships: Union[str, List[str]]=None,
-               custom_description:str = None
-               ) -> "GraphSchema":
+    def subset(self, sub_schema: SubSchema) -> "GraphSchema":
         """
-        Generates a subset of the graph schema based on provided nodes, relationship types, and/or patterns.
-
-        This method filters and retrieves a subset of the graph schema by selecting specific
-        node schemas and relationship schemas that satisfy the criteria defined by the inputs.
-        At least one of `nodes`, `patterns`, or `relationships` must be specified, otherwise an
-        exception will be raised.
+        Generates a subset of the graph schema based on a SubSchema object.
 
         Parameters:
-        nodes: Union[str, List[str]], optional
-            A node or list of node labels to include in the subset. If provided, the node schemas
-            corresponding to these nodes will be retrieved.
-
-        patterns: Union[Tuple[str, str, str], List[Tuple[str, str, str]]], optional
-            A pattern or list of patterns defining relationships to filter by. Each pattern is a
-            tuple containing the start node label, relationship type, and end node label. The relevant
-            node schemas and relationship schemas will be included in the subset.
-
-        relationships: Union[str, List[str]], optional
-            A relationship type or list of relationship types to include in the subset. The node and
-            relationship schemas corresponding to these relationships will be retrieved.
-            All query patterns for the relationship type will be included in the subset.
-
-        custom_description: str, optional
-            A custom description for the subsetted graph schema. I
-            f not provided, a default description will be generated based on the current graph schema and provided filters.
-            This will be provided as context for downstream AI tasks.
+        subschema: SubSchema
+            An object encapsulating nodes, patterns, relationships, and a custom description for the subset.
 
         Returns:
         GraphSchema
@@ -244,23 +268,18 @@ class GraphSchema(Element):
 
         Raises:
         ValueError
-            If all inputs `nodes`, `patterns`, and `relationships` are None.
+            If all inputs in the SubSchema are None.
         """
-        #error if all inputs are null
-        if not nodes and not patterns and not relationships:
-            raise ValueError("At least one of nodes, patterns, or relationships must be provided.")
-
         # get nodes
         node_schemas = dict()
-        if nodes:
-
-            for node in validate_list_type(nodes, str):
+        if sub_schema.nodes:
+            for node in sub_schema.nodes:
                 node_schemas[node] = self.get_node_schema_by_label(node).model_copy(deep=True)
 
         # get relationships filtered by query patterns
         relationship_schemas: Dict[str, RelationshipSchema] = dict()
-        if patterns:
-            for pattern in validate_list_type(patterns, tuple):
+        if sub_schema.patterns:
+            for pattern in sub_schema.patterns:
                 relationship_schema = self.get_relationship_schema(pattern[1], pattern[0],
                                                                    pattern[2]).model_copy(deep=True)
                 if pattern[1] in relationship_schemas:
@@ -281,8 +300,8 @@ class GraphSchema(Element):
                         node_schemas[pattern[2]] = self.get_node_schema_by_label(pattern[2]).model_copy(deep=True)
 
         # get relationships - note that this will pull all query patterns regardless of previously provided patterns
-        if relationships:
-            for relationship in validate_list_type(relationships, str):
+        if sub_schema.relationships:
+            for relationship in sub_schema.relationships:
                 relationship_schema = self.get_relationship_schema_by_type(relationship).model_copy(deep=True)
                 relationship_schemas[relationship] = relationship_schema
                 for query_pattern in relationship_schema.queryPatterns:
@@ -291,7 +310,8 @@ class GraphSchema(Element):
                     if query_pattern.endNode not in node_schemas:
                         node_schemas[query_pattern.endNode] = self.get_node_schema_by_label(query_pattern.endNode).model_copy(deep=True)
 
-        description = custom_description if custom_description else (
+        description = sub_schema.description if sub_schema.description else (
                 self.description + f"\nSubset to just the following nodes: {list(node_schemas.keys())}, "
                                    f"and relationships: {list(relationship_schemas.keys())}")
+
         return GraphSchema(description=description, nodes=list(node_schemas.values()), relationships=list(relationship_schemas.values()))

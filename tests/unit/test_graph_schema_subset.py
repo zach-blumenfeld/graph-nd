@@ -2,7 +2,7 @@ import unittest
 import json
 from pathlib import Path
 
-from graph_nd.graphrag.graph_schema import GraphSchema
+from graph_nd import GraphSchema, SubSchema
 
 
 class TestGraphSchemaSubset(unittest.TestCase):
@@ -20,7 +20,7 @@ class TestGraphSchemaSubset(unittest.TestCase):
         """
         Test subset behavior when filtering with just nodes.
         """
-        subset = self.graph_schema.subset(nodes=["Person", "Movie"])
+        subset = self.graph_schema.subset(SubSchema(nodes=["Person", "Movie"]))
         self.assertEqual(len(subset.nodes), 2)
         self.assertTrue(any(node.label == "Person" for node in subset.nodes))
         self.assertTrue(any(node.label == "Movie" for node in subset.nodes))
@@ -30,7 +30,7 @@ class TestGraphSchemaSubset(unittest.TestCase):
         """
         Test subset behavior when filtering with just patterns.
         """
-        subset = self.graph_schema.subset(patterns=[("Animal", "ACTED_IN", "Movie")])
+        subset = self.graph_schema.subset(SubSchema(patterns=[("Animal", "ACTED_IN", "Movie")]))
         self.assertEqual(len(subset.relationships), 1)
         # Extract the first relationship and assert the query pattern
         rel = subset.relationships[0]
@@ -44,7 +44,7 @@ class TestGraphSchemaSubset(unittest.TestCase):
         """
         Test subset behavior when filtering with just relationships.
         """
-        subset = self.graph_schema.subset(relationships=["ACTED_IN", "DIRECTED"])
+        subset = self.graph_schema.subset(SubSchema(relationships=["ACTED_IN", "DIRECTED"]))
 
         # Assert both relationships are present
         acted_in = next((rel for rel in subset.relationships if rel.type == "ACTED_IN"), None)
@@ -73,11 +73,11 @@ class TestGraphSchemaSubset(unittest.TestCase):
         """
         Test subset behavior with a combination of nodes, patterns, and relationships.
         """
-        subset = self.graph_schema.subset(
+        subset = self.graph_schema.subset(SubSchema(
             nodes=["Award"],
             patterns=[("Person", "ACTED_IN", "Movie")],
             relationships=["ACTED_IN"]
-        )
+        ))
         # the acted_in relationship implies Animal node as well so we need 4 nodes total
         self.assertEqual(len(subset.nodes), 4)
         # we only have one relationship
@@ -98,7 +98,7 @@ class TestGraphSchemaSubset(unittest.TestCase):
         """
         node_label = "InvalidNode"
         with self.assertRaises(ValueError) as cm:
-            self.graph_schema.subset(nodes=node_label)
+            self.graph_schema.subset(SubSchema(nodes=node_label))
         self.assertEqual(str(cm.exception), f"No NodeSchema found with the label '{node_label}'")
 
     def test_subset_with_invalid_patterns(self):
@@ -109,7 +109,7 @@ class TestGraphSchemaSubset(unittest.TestCase):
         rel_type = "DIRECTED"
         end_node_label = "Movie"
         with self.assertRaises(ValueError) as cm:
-            self.graph_schema.subset(patterns=[(start_node_label, rel_type, end_node_label)])
+            self.graph_schema.subset(SubSchema(patterns=[(start_node_label, rel_type, end_node_label)]))
         self.assertEqual(
             str(cm.exception),
             f"No RelationshipSchema found with type '{rel_type}' and query pattern "
@@ -122,7 +122,7 @@ class TestGraphSchemaSubset(unittest.TestCase):
         """
         rel_type = "INVALID_REL"
         with self.assertRaises(ValueError) as cm:
-            self.graph_schema.subset(relationships=[rel_type])
+            self.graph_schema.subset(SubSchema(relationships=[rel_type]))
         self.assertEqual(str(cm.exception), f"No RelationshipSchema found with type '{rel_type}'")
 
 

@@ -194,7 +194,7 @@ def run_async_function(func, *args, **kwargs):
         return asyncio.run(func(*args, **kwargs))
 
 # Helper function for type checking and conversion to list
-def validate_list_type(input_data, expected_type):
+def validate_list_type(input_data, expected_type, name):
     if input_data is None:
         return None
     elif isinstance(input_data, expected_type):
@@ -203,4 +203,5 @@ def validate_list_type(input_data, expected_type):
         return input_data  # Already a valid list
     else:
         raise TypeError(
-            f"Invalid type. Expected {expected_type.__name__} or a list of {expected_type.__name__}.")
+            f"Invalid type for {name}. Expected {expected_type.__name__} or a list of {expected_type.__name__}.")
+
