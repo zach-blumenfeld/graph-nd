@@ -1,0 +1,433 @@
+{
+    "description": "",
+    "nodes": [
+        {
+            "description": "",
+            "id": {
+                "description": "",
+                "name": "productCode",
+                "type": "integer"
+            },
+            "label": "Product",
+            "properties": [
+                {
+                    "description": "",
+                    "name": "description",
+                    "type": "string"
+                },
+                {
+                    "description": "",
+                    "name": "name",
+                    "type": "string"
+                },
+                {
+                    "description": "",
+                    "name": "productCode",
+                    "type": "integer"
+                }
+            ],
+            "searchFields": [
+                {
+                    "description": "",
+                    "name": "description_textembedding",
+                    "type": "TEXT_EMBEDDING",
+                    "calculatedFrom": "description"
+                },
+                {
+                    "description": "",
+                    "name": "name_textembedding",
+                    "type": "TEXT_EMBEDDING",
+                    "calculatedFrom": "name"
+                }
+            ]
+        },
+        {
+            "description": "",
+            "id": {
+                "description": "",
+                "name": "supplierId",
+                "type": "integer"
+            },
+            "label": "Supplier",
+            "properties": [
+                {
+                    "description": "",
+                    "name": "address",
+                    "type": "string"
+                },
+                {
+                    "description": "",
+                    "name": "name",
+                    "type": "string"
+                },
+                {
+                    "description": "",
+                    "name": "supplierId",
+                    "type": "integer"
+                }
+            ],
+            "searchFields": [
+                {
+                    "description": "",
+                    "name": "address_textembedding",
+                    "type": "TEXT_EMBEDDING",
+                    "calculatedFrom": "address"
+                },
+                {
+                    "description": "",
+                    "name": "name_textembedding",
+                    "type": "TEXT_EMBEDDING",
+                    "calculatedFrom": "name"
+                }
+            ]
+        },
+        {
+            "description": "",
+            "id": {
+                "description": "",
+                "name": "creditNoteId",
+                "type": "string"
+            },
+            "label": "CreditNote",
+            "properties": [
+                {
+                    "description": "",
+                    "name": "amount",
+                    "type": "float"
+                },
+                {
+                    "description": "",
+                    "name": "creditNoteId",
+                    "type": "string"
+                },
+                {
+                    "description": "",
+                    "name": "date",
+                    "type": "string"
+                },
+                {
+                    "description": "",
+                    "name": "reason",
+                    "type": "string"
+                }
+            ],
+            "searchFields": [
+                {
+                    "description": "",
+                    "name": "reason_textembedding",
+                    "type": "TEXT_EMBEDDING",
+                    "calculatedFrom": "reason"
+                }
+            ]
+        },
+        {
+            "description": "",
+            "id": {
+                "description": "",
+                "name": "customerId",
+                "type": "string"
+            },
+            "label": "Customer",
+            "properties": [
+                {
+                    "description": "",
+                    "name": "address",
+                    "type": "string"
+                },
+                {
+                    "description": "",
+                    "name": "age",
+                    "type": "integer"
+                },
+                {
+                    "description": "",
+                    "name": "clubMemberStatus",
+                    "type": "string"
+                },
+                {
+                    "description": "",
+                    "name": "customerId",
+                    "type": "string"
+                },
+                {
+                    "description": "",
+                    "name": "fashionNewsFrequency",
+                    "type": "string"
+                },
+                {
+                    "description": "",
+                    "name": "name",
+                    "type": "string"
+                },
+                {
+                    "description": "",
+                    "name": "postalCode",
+                    "type": "string"
+                }
+            ],
+            "searchFields": [
+                {
+                    "description": "",
+                    "name": "address_textembedding",
+                    "type": "TEXT_EMBEDDING",
+                    "calculatedFrom": "address"
+                },
+                {
+                    "description": "",
+                    "name": "clubMemberStatus_textembedding",
+                    "type": "TEXT_EMBEDDING",
+                    "calculatedFrom": "clubMemberStatus"
+                },
+                {
+                    "description": "",
+                    "name": "fashionNewsFrequency_textembedding",
+                    "type": "TEXT_EMBEDDING",
+                    "calculatedFrom": "fashionNewsFrequency"
+                },
+                {
+                    "description": "",
+                    "name": "name_textembedding",
+                    "type": "TEXT_EMBEDDING",
+                    "calculatedFrom": "name"
+                }
+            ]
+        },
+        {
+            "description": "",
+            "id": {
+                "description": "",
+                "name": "orderId",
+                "type": "integer"
+            },
+            "label": "Order",
+            "properties": [
+                {
+                    "description": "",
+                    "name": "date",
+                    "type": "string"
+                },
+                {
+                    "description": "",
+                    "name": "orderId",
+                    "type": "integer"
+                }
+            ],
+            "searchFields": []
+        },
+        {
+            "description": "",
+            "id": {
+                "description": "",
+                "name": "articleId",
+                "type": "integer"
+            },
+            "label": "Article",
+            "properties": [
+                {
+                    "description": "",
+                    "name": "articleId",
+                    "type": "integer"
+                },
+                {
+                    "description": "",
+                    "name": "colourGroupCode",
+                    "type": "integer"
+                },
+                {
+                    "description": "",
+                    "name": "colourGroupName",
+                    "type": "string"
+                },
+                {
+                    "description": "",
+                    "name": "graphicalAppearanceName",
+                    "type": "string"
+                },
+                {
+                    "description": "",
+                    "name": "graphicalAppearanceNo",
+                    "type": "integer"
+                },
+                {
+                    "description": "",
+                    "name": "name",
+                    "type": "string"
+                }
+            ],
+            "searchFields": [
+                {
+                    "description": "",
+                    "name": "colourGroupName_textembedding",
+                    "type": "TEXT_EMBEDDING",
+                    "calculatedFrom": "colourGroupName"
+                },
+                {
+                    "description": "",
+                    "name": "graphicalAppearanceName_textembedding",
+                    "type": "TEXT_EMBEDDING",
+                    "calculatedFrom": "graphicalAppearanceName"
+                },
+                {
+                    "description": "",
+                    "name": "name_textembedding",
+                    "type": "TEXT_EMBEDDING",
+                    "calculatedFrom": "name"
+                }
+            ]
+        },
+        {
+            "description": "",
+            "id": {
+                "description": "",
+                "name": "name",
+                "type": "string"
+            },
+            "label": "ProductType",
+            "properties": [
+                {
+                    "description": "",
+                    "name": "name",
+                    "type": "string"
+                }
+            ],
+            "searchFields": [
+                {
+                    "description": "",
+                    "name": "name_textembedding",
+                    "type": "TEXT_EMBEDDING",
+                    "calculatedFrom": "name"
+                }
+            ]
+        },
+        {
+            "description": "",
+            "id": {
+                "description": "",
+                "name": "name",
+                "type": "string"
+            },
+            "label": "ProductCategory",
+            "properties": [
+                {
+                    "description": "",
+                    "name": "name",
+                    "type": "string"
+                }
+            ],
+            "searchFields": [
+                {
+                    "description": "",
+                    "name": "name_textembedding",
+                    "type": "TEXT_EMBEDDING",
+                    "calculatedFrom": "name"
+                }
+            ]
+        }
+    ],
+    "relationships": [
+        {
+            "description": "",
+            "id": null,
+            "type": "PART_OF",
+            "queryPatterns": [
+                {
+                    "description": "",
+                    "startNode": "Product",
+                    "endNode": "ProductType"
+                }
+            ],
+            "properties": []
+        },
+        {
+            "description": "",
+            "id": null,
+            "type": "PART_OF",
+            "queryPatterns": [
+                {
+                    "description": "",
+                    "startNode": "Product",
+                    "endNode": "ProductCategory"
+                }
+            ],
+            "properties": []
+        },
+        {
+            "description": "",
+            "id": null,
+            "type": "REFUND_FOR_ORDER",
+            "queryPatterns": [
+                {
+                    "description": "",
+                    "startNode": "CreditNote",
+                    "endNode": "Order"
+                }
+            ],
+            "properties": []
+        },
+        {
+            "description": "",
+            "id": null,
+            "type": "REFUND_OF_ARTICLE",
+            "queryPatterns": [
+                {
+                    "description": "",
+                    "startNode": "CreditNote",
+                    "endNode": "Article"
+                }
+            ],
+            "properties": []
+        },
+        {
+            "description": "",
+            "id": null,
+            "type": "ORDERED",
+            "queryPatterns": [
+                {
+                    "description": "",
+                    "startNode": "Customer",
+                    "endNode": "Order"
+                }
+            ],
+            "properties": []
+        },
+        {
+            "description": "",
+            "id": null,
+            "type": "CONTAINS",
+            "queryPatterns": [
+                {
+                    "description": "",
+                    "startNode": "Order",
+                    "endNode": "Article"
+                }
+            ],
+            "properties": []
+        },
+        {
+            "description": "",
+            "id": null,
+            "type": "SUPPLIED_BY",
+            "queryPatterns": [
+                {
+                    "description": "",
+                    "startNode": "Article",
+                    "endNode": "Supplier"
+                }
+            ],
+            "properties": []
+        },
+        {
+            "description": "",
+            "id": null,
+            "type": "VARIANT_OF",
+            "queryPatterns": [
+                {
+                    "description": "",
+                    "startNode": "Article",
+                    "endNode": "Product"
+                }
+            ],
+            "properties": []
+        }
+    ]
+}

@@ -1,0 +1,322 @@
+{
+    "description": "Graph representation of the fashion retailer's data, including customers, orders, products, articles (product variants), and suppliers.",
+    "nodes": [
+        {
+            "description": "",
+            "id": {
+                "description": "",
+                "name": "customerId",
+                "type": "STRING"
+            },
+            "label": "Customer",
+            "properties": [
+                {
+                    "description": "",
+                    "name": "postalCode",
+                    "type": "STRING"
+                },
+                {
+                    "description": "The segment this customer belongs to based on purchase behavior.",
+                    "name": "segmentId",
+                    "type": "INTEGER"
+                },
+                {
+                    "description": "",
+                    "name": "age",
+                    "type": "INTEGER"
+                },
+                {
+                    "description": "",
+                    "name": "fashionNewsFrequency",
+                    "type": "STRING"
+                },
+                {
+                    "description": "",
+                    "name": "clubMemberStatus",
+                    "type": "STRING"
+                }
+            ],
+            "searchFields": []
+        },
+        {
+            "description": "Represents a credit note issued for refunds or adjustments.",
+            "id": {
+                "description": "",
+                "name": "creditNoteId",
+                "type": "STRING"
+            },
+            "label": "CreditNote",
+            "properties": [
+                {
+                    "description": "the monetary amount of the refund",
+                    "name": "amount",
+                    "type": "FLOAT"
+                },
+                {
+                    "description": "",
+                    "name": "reason",
+                    "type": "STRING"
+                },
+                {
+                    "description": "",
+                    "name": "date",
+                    "type": "STRING"
+                }
+            ],
+            "searchFields": [
+                {
+                    "description": "",
+                    "name": "reason_textembedding",
+                    "type": "TEXT_EMBEDDING",
+                    "calculatedFrom": "reason"
+                }
+            ]
+        },
+        {
+            "description": "Represents a product in the retailer's catalog.",
+            "id": {
+                "description": "",
+                "name": "productCode",
+                "type": "INTEGER"
+            },
+            "label": "Product",
+            "properties": [
+                {
+                    "description": "A textual description of the product, combining multiple other properties. Used for search.",
+                    "name": "text",
+                    "type": "STRING"
+                },
+                {
+                    "description": "",
+                    "name": "description",
+                    "type": "STRING"
+                },
+                {
+                    "description": "",
+                    "name": "name",
+                    "type": "STRING"
+                },
+                {
+                    "description": "",
+                    "name": "url",
+                    "type": "STRING"
+                }
+            ],
+            "searchFields": [
+                {
+                    "description": "Embeddings to enable semantic search for products",
+                    "name": "text_textembedding",
+                    "type": "TEXT_EMBEDDING",
+                    "calculatedFrom": "text"
+                }
+            ]
+        },
+        {
+            "description": "Represents an order made by a customer.",
+            "id": {
+                "description": "",
+                "name": "orderId",
+                "type": "INTEGER"
+            },
+            "label": "Order",
+            "properties": [
+                {
+                    "description": "",
+                    "name": "date",
+                    "type": "DATE_TIME"
+                }
+            ],
+            "searchFields": []
+        },
+        {
+            "description": "Represents the category of a product.",
+            "id": {
+                "description": "",
+                "name": "name",
+                "type": "STRING"
+            },
+            "label": "ProductCategory",
+            "properties": [],
+            "searchFields": []
+        },
+        {
+            "description": "Represents a specific article that is a variant of a product.",
+            "id": {
+                "description": "",
+                "name": "articleId",
+                "type": "INTEGER"
+            },
+            "label": "Article",
+            "properties": [
+                {
+                    "description": "",
+                    "name": "colourGroupCode",
+                    "type": "INTEGER"
+                },
+                {
+                    "description": "",
+                    "name": "colourGroupName",
+                    "type": "STRING"
+                },
+                {
+                    "description": "",
+                    "name": "graphicalAppearanceName",
+                    "type": "STRING"
+                },
+                {
+                    "description": "",
+                    "name": "graphicalAppearanceNo",
+                    "type": "INTEGER"
+                }
+            ],
+            "searchFields": []
+        },
+        {
+            "description": "Represents a supplier providing articles to the retailer.",
+            "id": {
+                "description": "",
+                "name": "supplierId",
+                "type": "INTEGER"
+            },
+            "label": "Supplier",
+            "properties": [
+                {
+                    "description": "",
+                    "name": "address",
+                    "type": "STRING"
+                },
+                {
+                    "description": "",
+                    "name": "name",
+                    "type": "STRING"
+                }
+            ],
+            "searchFields": []
+        },
+        {
+            "description": "Represents the type of a product.",
+            "id": {
+                "description": "",
+                "name": "name",
+                "type": "STRING"
+            },
+            "label": "ProductType",
+            "properties": [
+                {
+                    "description": "",
+                    "name": "name",
+                    "type": "STRING"
+                }
+            ],
+            "searchFields": []
+        }
+    ],
+    "relationships": [
+        {
+            "description": "",
+            "id": null,
+            "type": "ORDERED",
+            "queryPatterns": [
+                {
+                    "description": "",
+                    "startNode": "Customer",
+                    "endNode": "Order"
+                }
+            ],
+            "properties": []
+        },
+        {
+            "description": "",
+            "id": null,
+            "type": "REFUND_OF_ARTICLE",
+            "queryPatterns": [
+                {
+                    "description": "",
+                    "startNode": "CreditNote",
+                    "endNode": "Article"
+                }
+            ],
+            "properties": []
+        },
+        {
+            "description": "",
+            "id": null,
+            "type": "REFUND_FOR_ORDER",
+            "queryPatterns": [
+                {
+                    "description": "",
+                    "startNode": "CreditNote",
+                    "endNode": "Order"
+                }
+            ],
+            "properties": []
+        },
+        {
+            "description": "",
+            "id": null,
+            "type": "PART_OF",
+            "queryPatterns": [
+                {
+                    "description": "",
+                    "startNode": "Product",
+                    "endNode": "ProductType"
+                },
+                {
+                    "description": "",
+                    "startNode": "Product",
+                    "endNode": "ProductCategory"
+                }
+            ],
+            "properties": []
+        },
+        {
+            "description": "",
+            "id": null,
+            "type": "VARIANT_OF",
+            "queryPatterns": [
+                {
+                    "description": "",
+                    "startNode": "Article",
+                    "endNode": "Product"
+                }
+            ],
+            "properties": []
+        },
+        {
+            "description": "",
+            "id": {
+                "description": "",
+                "name": "txId",
+                "type": "INTEGER"
+            },
+            "type": "CONTAINS",
+            "queryPatterns": [
+                {
+                    "description": "",
+                    "startNode": "Order",
+                    "endNode": "Article"
+                }
+            ],
+            "properties": [
+                {
+                    "description": "",
+                    "name": "price",
+                    "type": "FLOAT"
+                }
+            ]
+        },
+        {
+            "description": "",
+            "id": null,
+            "type": "SUPPLIED_BY",
+            "queryPatterns": [
+                {
+                    "description": "",
+                    "startNode": "Article",
+                    "endNode": "Supplier"
+                }
+            ],
+            "properties": []
+        }
+    ]
+}
