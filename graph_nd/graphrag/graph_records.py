@@ -143,7 +143,7 @@ class SubGraph(BaseModel):
         for rel_triple, df in rel_triple_dfs.items():
             rel_schema = graph_schema.get_relationship_schema(rel_triple[1], rel_triple[0], rel_triple[2])
             start_node_schema = graph_schema.get_node_schema_by_label(rel_triple[0])
-            end_node_schema = graph_schema.get_node_schema_by_label(rel_triple[0])
+            end_node_schema = graph_schema.get_node_schema_by_label(rel_triple[2])
             relationship_data_list.append(RelationshipData(rel_schema=rel_schema,
                                                           start_node_schema=start_node_schema,
                                                           end_node_schema=end_node_schema,
