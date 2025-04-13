@@ -316,20 +316,77 @@ class GraphData(BaseModel):
     nodeDatas: List[NodeData] = Field(default_factory=list, description="list of NodeData records")
     relationshipDatas: Optional[List[RelationshipData]] = Field(default_factory=list, description="list of RelationshipData records")
 
+    def consolidate_node_datas(self):
+        """
+        Consolidate NodeDatas such that there is only one NodeData per unique node_schema,
+        and append the records of duplicate NodeData objects.
+        This is critical for merging graph data efficiently.
+        """
+        # Use a dictionary to hold deduplicated NodeData objects, keyed by node_schema
+        deduplicated = {}
+
+        for node_data in self.nodeDatas:
+            # Use node_schema as a key for deduplication
+            node_schema_key = node_data.node_schema.label
+
+            if node_schema_key in deduplicated:
+                # Append records to the existing NodeData object
+                deduplicated[node_schema_key].records.extend(node_data.records)
+            else:
+                # Add a new entry in deduplicated dictionary
+                deduplicated[node_schema_key] = node_data
+        # set the values (which are the deduplicated NodeData objects)
+        self.nodeDatas = list(deduplicated.values())
+
+    def consolidate_relationship_datas(self):
+        """
+        consolidate RelationshipDatas such that there is only one RelationshipData per unique combination
+        of rel_schema, start_node_schema, and end_node_schema.
+        Append the records of duplicate RelationshipData objects.
+        This is critical for merging graph data efficiently.
+        """
+        # Use a dictionary to hold deduplicated RelationshipData objects, keyed by (rel_schema, start_node_schema, end_node_schema)
+        deduplicated = {}
+
+        for rel_data in self.relationshipDatas:
+            # Create a key based on rel_schema, start_node_schema, and end_node_schema
+            relationship_key = (rel_data.rel_schema.type, rel_data.start_node_schema.label, rel_data.end_node_schema.label)
+
+            if relationship_key in deduplicated:
+                # Append records to the existing RelationshipData object
+                deduplicated[relationship_key].records.extend(rel_data.records)
+            else:
+                # Add a new entry in deduplicated dictionary
+                deduplicated[relationship_key] = rel_data
+
+        # Set the deduplicated RelationshipData back to the relationshipDatas attribute
+        self.relationshipDatas = list(deduplicated.values())
+
+    def consolidate(self):
+        """
+        Consolidates node and relationship data by invoking respective methods to
+        process data. Makes merging data significantly faster.
+        This method acts as a central point to group data consolidation
+        operations into a unified workflow.
+
+        """
+        self.consolidate_node_datas()
+        self.consolidate_relationship_datas()
+
     def merge(self, db_client, source_metadata: Union[bool, Dict[str, Any]]=True, embedding_model=None):
         default_source_metadata = {
-            "id": f"merge_relationships_at_{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}_{uuid.uuid4().hex[:8]}",
+            "id": f"merge_nodes_and_relationships_at_{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}_{uuid.uuid4().hex[:8]}",
             "sourceType": SourceType.NODE_AND_RELATIONSHIP_LISTS.value,
             "transformType": TransformType.UNKNOWN.value,
             "loadType": LoadType.MERGE_NODES_AND_RELATIONSHIPS.value,
             "name": "node-and-relationship-merge",
         }
         source_metadata = prepare_source_metadata(source_metadata, default_source_metadata)
-        for nodeData in self.nodeDatas:
+        for nodeData in tqdm(self.nodeDatas, desc="Merging Nodes by Label", unit="node"):
             #print(f"Merging {nodeData.node_schema.label} nodes")
             nodeData.merge(db_client, source_metadata, embedding_model=embedding_model)
 
-        for relData in self.relationshipDatas:
+        for relData in tqdm(self.relationshipDatas, desc="Merging Relationships by Type & Pattern", unit="rel"):
             #print(f"Merging ({relData.start_node_schema.label})-[{relData.rel_schema.type}]->({relData.end_node_schema.label}) relationships")
             relData.merge(db_client, source_metadata)
 

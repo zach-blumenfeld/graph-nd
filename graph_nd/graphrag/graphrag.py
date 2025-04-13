@@ -16,7 +16,7 @@ from tqdm.asyncio import tqdm as tqdm_async
 
 
 from graph_nd.graphrag.graph_data import NodeData, RelationshipData, GraphData
-from graph_nd.graphrag.graph_schema import GraphSchema, NodeSchema
+from graph_nd.graphrag.graph_schema import GraphSchema, NodeSchema, SubSchema
 from graph_nd.graphrag.graph_records import SubGraph, SubGraphNodes
 from graph_nd.graphrag.source_metadata import SourceType, TransformType, LoadType, prepare_source_metadata
 from graph_nd.graphrag.table_mapping import TableTypeEnum, TableType, NodeTableMapping, RelTableMapping
@@ -29,7 +29,7 @@ from graph_nd.graphrag.utils import read_csv_preview, read_csv, load_pdf, remove
 import nest_asyncio
 
 class GraphRAG:
-    def __init__(self, db_client, llm=None, embedding_model=None):
+    def __init__(self, db_client=None, llm=None, embedding_model=None):
         """
         Initializes the GraphRAG instance.
 
@@ -141,7 +141,7 @@ class GraphRAG:
             print(f"[Schema] Generated schema:\n {self.schema.prompt_str()}")
             return self.schema
 
-        def craft_from_dict(self, schema_json: str):
+        def craft_from_json(self, schema_json: str):
             """
             uses LLM to craft the graph schema based on a JSON-like definition.
 
@@ -467,55 +467,81 @@ class GraphRAG:
             for file_path in file_paths:
                 self.merge_csv(file_path, source_metadata)
 
-        async def extract_nodes_from_text(self, file_path, text) -> GraphData:
+        async def extract_nodes_from_text(self, file_path, text, sub_schema:SubSchema=None) -> GraphData:
+            graph_schema:GraphSchema = self.graphrag.schema.schema.subset(sub_schema) if sub_schema else self.graphrag.schema.schema
+
             prompt = TEXT_NODE_EXTRACTION_TEMPLATE.invoke({'fileName': os.path.basename(file_path),
                                                       'text': text,
-                                                      'graphSchema': self.graphrag.schema.schema.nodes_only_prompt_str()})
+                                                      'graphSchema': graph_schema.nodes_only_prompt_str()})
             # pprint(prompt.text)
             # Use structured LLM for extraction
             extracted_nodes: SubGraphNodes = await self.llm_node_text_extractor.ainvoke(prompt)
             graph_data = extracted_nodes.to_subgraph().convert_to_graph_data(self.graphrag.schema.schema)
             return graph_data
 
-        async def extract_nodes_and_rels_from_text(self, file_path, text) -> GraphData:
+        async def extract_nodes_and_rels_from_text(self, file_path, text, sub_schema:SubSchema=None) -> GraphData:
+            graph_schema: GraphSchema = self.graphrag.schema.schema.subset(sub_schema) if sub_schema else self.graphrag.schema.schema
             prompt = TEXT_EXTRACTION_TEMPLATE.invoke({'fileName': os.path.basename(file_path),
                                                       'text': text,
-                                                      'graphSchema': self.graphrag.schema.schema.prompt_str()})
+                                                      'graphSchema': graph_schema.prompt_str()})
             # pprint(prompt.text)
             # Use structured LLM for extraction
             extracted_subgraph: SubGraph = await self.llm_text_extractor.ainvoke(prompt)
             graph_data:GraphData = extracted_subgraph.convert_to_graph_data(self.graphrag.schema.schema)
             return graph_data
 
-        async def extract_from_text_async(self, text, semaphore, source_name: str, nodes_only=True) -> GraphData:
+        async def extract_from_text_async(self, text, semaphore, source_name: str, nodes_only=True, sub_schema:SubSchema=None) -> GraphData:
             async with semaphore:
-                graph_data = await self.extract_nodes_from_text(source_name, text) if nodes_only \
-                    else await self.extract_nodes_and_rels_from_text(source_name, text)
+                graph_data = await self.extract_nodes_from_text(source_name, text, sub_schema) if nodes_only \
+                    else await self.extract_nodes_and_rels_from_text(source_name, text, sub_schema)
                 return graph_data
 
-
-        async def extract_from_texts_async(self, texts: List[str], source_name: str, nodes_only=True, max_workers=10) -> List[GraphData]:
+        async def extract_from_texts_async(self,
+                                           texts: List[str],
+                                           source_name: str,
+                                           nodes_only=True,
+                                           max_workers=10,
+                                           sub_schema:SubSchema=None) -> GraphData:
             self._validate_llms()
             # Create a semaphore with the desired number of workers
             semaphore = asyncio.Semaphore(max_workers)
 
             # Create tasks with the semaphore
-            tasks = [self.extract_from_text_async(text, semaphore, source_name, nodes_only) for text in texts]
+            tasks = [self.extract_from_text_async(text, semaphore, source_name, nodes_only, sub_schema) for text in texts]
 
             # Explicitly update progress using `tqdm` as tasks complete
-            results = []
+            results:GraphData = GraphData(nodeDatas=[], relationshipDatas=[])
             with tqdm_async(total=len(tasks), desc="Extracting entities from text") as pbar:
                 for future in asyncio.as_completed(tasks):
                     result = await future
-                    results.append(result)
+                    results.nodeDatas.extend(result.nodeDatas)
+                    results.relationshipDatas.extend(result.relationshipDatas)
                     pbar.update(1)  # Increment progress bar for each completed task
+            print("Consolidating results...")
+            results.consolidate()
             return results
 
-        def extract_from_texts(self, texts: List[str], source_name: str, nodes_only=True, max_workers=10) -> List[GraphData]:
-            return run_async_function(self.extract_from_texts_async, texts, source_name, nodes_only, max_workers)
+        def extract_from_texts(self,
+                               texts: List[str],
+                               source_name: str,
+                               nodes_only=True,
+                               max_workers=10,
+                               sub_schema:SubSchema=None) -> GraphData:
+            return run_async_function(self.extract_from_texts_async,
+                                      texts,
+                                      source_name,
+                                      nodes_only,
+                                      max_workers,
+                                      sub_schema)
 
-        def merge_texts(self, texts: List[str], source_name: str, nodes_only=True, max_workers=10, source_metadata: Union[bool, Dict[str, Any]] = True):
-            graph_datas = self.extract_from_texts(texts, source_name, nodes_only, max_workers)
+        def merge_texts(self,
+                        texts: List[str],
+                        source_name: str,
+                        nodes_only=True,
+                        max_workers=10,
+                        source_metadata: Union[bool, Dict[str, Any]] = True,
+                        sub_schema:SubSchema=None):
+            graph_data:GraphData = self.extract_from_texts(texts, source_name, nodes_only, max_workers, sub_schema)
 
             default_source_metadata = {
                 "sourceType": SourceType.UNSTRUCTURED_TEXT.value,
@@ -533,16 +559,10 @@ class GraphRAG:
 
             source_metadata = prepare_source_metadata(source_metadata, default_source_metadata)
 
-            for graph_data in tqdm(graph_datas, desc="Merging entities from text"):
-                # merge nodes
-                for node_data in graph_data.nodeDatas:
-                    node_data.merge(self.db_client, embedding_model=self.embedding_model, source_metadata=source_metadata)
-                # merge relationships
-                for rels_data in graph_data.relationshipDatas:
-                    rels_data.merge(self.db_client, source_metadata=source_metadata)
+            graph_data.merge(self.db_client, embedding_model=self.embedding_model, source_metadata=source_metadata)
 
         def merge_pdf(self, file_path: str, chunk_strategy="BY_PAGE", chunk_size=10, nodes_only=True, max_workers=10,
-                      source_metadata: Union[bool, Dict[str, Any]] = True):
+                      source_metadata: Union[bool, Dict[str, Any]] = True, sub_schema:SubSchema=None):
             """
             Merges data from a PDF file into a graph database by extracting structured graph-based entities
             through the use of a Large Language Model (LLM) textual extractor. The method processes the PDF
@@ -557,6 +577,18 @@ class GraphRAG:
                     Default is True.
                 max_workers (int, optional): The maximum number of workers for parallel processing.
                     Default is 10.
+                source_metadata : Union[bool, Dict[str, Any]], optional
+                    Metadata for the source file being merged.
+                        - If set to `True`, default source metadata is prepared and added to a __Source__ node in the graph.
+                        A __source_id property is added and/or appended to each node and relationship which maps to the id property of __Source__ node
+                        - If `False`, no source metadata is added to the graph.
+                        - If a custom dictionary is provided, source metadata is added as in the case of `True` and the dictionary properties override the default ones.
+                    Default is True.
+
+                sub_schema : SubSchema, optional
+                    A sub-schema specifying filtering criteria (nodes, patterns, relationships, etc.) for the target graphSchema. If not provided, the whole graphSchema
+                    is considered. Default is None.
+
 
             Raises:
                 ValueError: If the file_path is invalid, empty, or not a supported PDF file.
@@ -572,7 +604,7 @@ class GraphRAG:
             }
 
             source_metadata = prepare_source_metadata(source_metadata, default_source_metadata)
-            self.merge_texts(texts, file_path, nodes_only, max_workers, source_metadata)
+            self.merge_texts(texts, file_path, nodes_only, max_workers, source_metadata, sub_schema)
 
         def nuke(self, delete_chunk_size=10_000, skip_confirmation=False):
             """
