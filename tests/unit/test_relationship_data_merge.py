@@ -1,4 +1,5 @@
 import json
+import os
 import unittest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
@@ -6,7 +7,7 @@ from graph_nd.graphrag.graph_schema import GraphSchema  # Replace with the real 
 from graph_nd.graphrag.graph_data import RelationshipData  # Import your RelationshipData class
 
 # Filepath for `movie-schema.json`
-SCHEMA_FILE_PATH = Path("data/movie-schema.json")
+SCHEMA_FILE_PATH = os.path.join(os.path.dirname(__file__), 'data/movie-schema.json')
 
 
 class TestRelationshipDataMerge(unittest.TestCase):

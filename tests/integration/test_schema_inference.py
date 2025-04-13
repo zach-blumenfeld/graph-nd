@@ -58,12 +58,12 @@ class TestGraphRAGSchemaInference(unittest.TestCase):
         self.assertGreater(len(inferred_schema.nodes), 1)
         self.assertGreater(len(inferred_schema.relationships), 0)
 
-    def test_craft_from_dict_with_real_llm(self):
+    def test_craft_from_json_with_real_llm(self):
         """
         Test the craft_from_dict method using a real LLM with a JSON-like definition.
         """
         schema_dict = '{"nodes": [{"label": "Person"}, {"label": "Movie"}], "relationships": [{"type": "ACTS_IN"}]}'
-        crafted_schema = self.graph_rag.schema.craft_from_dict(schema_dict)
+        crafted_schema = self.graph_rag.schema.craft_from_json(schema_dict)
 
         print("Result from craft_from_dict:")
         print(crafted_schema)

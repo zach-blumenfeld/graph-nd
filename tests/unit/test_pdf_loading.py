@@ -12,7 +12,7 @@ class TestPDFLoader(unittest.TestCase):
         when chunk_size is 20.
         """
         # Path to the PDF file in the data folder
-        file_path = 'data/component-catalog.pdf'
+        file_path = os.path.join(os.path.dirname(__file__), 'data/component-catalog.pdf')
 
         # Expecting 5 chunks for 79 pages with chunking by 20 pages
         expected_chunk_count = 4

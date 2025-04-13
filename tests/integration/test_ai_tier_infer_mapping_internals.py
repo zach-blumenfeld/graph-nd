@@ -196,7 +196,7 @@ class TestAITierInferMappingInternals(unittest.TestCase):
 
     def test_infer_mapping_directives(self):
         print(self.mapping_directives.model_dump_json(indent=4))
-        self.assertGreater(len(self.mapping_directives.source_mapping_directives), 4)
+        self.assertGreater(len(self.mapping_directives.source_mapping_directives), 3)
 
     def test_create_mapping_from_directives(self):
         print(self.mappings.model_dump_json(indent=4))

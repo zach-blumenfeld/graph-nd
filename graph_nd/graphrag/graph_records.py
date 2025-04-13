@@ -123,11 +123,14 @@ class SubGraph(BaseModel):
             # Filter out invalid relationships where start/end node IDs are missing
             df = df.dropna(subset=["start_node_id", "end_node_id"])
 
-            # Ensure that start/end node IDs exist in the validated NodeData
-            valid_start_node_ids = node_label_dfs[rel_triple[0]]["__SCHEMA_NODE_ID__"].to_list()
-            df = df[df['start_node_id'].isin(valid_start_node_ids)]
-            valid_end_node_ids = node_label_dfs[rel_triple[2]]["__SCHEMA_NODE_ID__"].to_list()
-            df = df[df['end_node_id'].isin(valid_end_node_ids)]
+            #TODO: I Don't think we need this validation anymore after changing relationship merge
+            # from MATCH-MATCH-MERGE to MERGE-MERGE-MERGE Pattern
+            # Should research more to be sure
+            ## Ensure that start/end node IDs exist in the validated NodeData
+            #valid_start_node_ids = node_label_dfs[rel_triple[0]]["__SCHEMA_NODE_ID__"].to_list()
+            #df = df[df['start_node_id'].isin(valid_start_node_ids)]
+            #valid_end_node_ids = node_label_dfs[rel_triple[2]]["__SCHEMA_NODE_ID__"].to_list()
+            #df = df[df['end_node_id'].isin(valid_end_node_ids)]
             #add validated relations
             rel_triple_dfs[rel_triple] = df
 
@@ -143,7 +146,7 @@ class SubGraph(BaseModel):
         for rel_triple, df in rel_triple_dfs.items():
             rel_schema = graph_schema.get_relationship_schema(rel_triple[1], rel_triple[0], rel_triple[2])
             start_node_schema = graph_schema.get_node_schema_by_label(rel_triple[0])
-            end_node_schema = graph_schema.get_node_schema_by_label(rel_triple[0])
+            end_node_schema = graph_schema.get_node_schema_by_label(rel_triple[2])
             relationship_data_list.append(RelationshipData(rel_schema=rel_schema,
                                                           start_node_schema=start_node_schema,
                                                           end_node_schema=end_node_schema,

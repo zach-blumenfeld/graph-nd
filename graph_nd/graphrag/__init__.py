@@ -1,4 +1,5 @@
 # Imports from graphrag.py
 from .graphrag import GraphRAG
-__all__ = ["GraphRAG"]
+from .graph_schema import GraphSchema, SubSchema
+__all__ = ["GraphRAG", "GraphSchema", "SubSchema"]
 
