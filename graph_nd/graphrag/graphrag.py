@@ -141,20 +141,58 @@ class GraphRAG:
             print(f"[Schema] Generated schema:\n {self.schema.prompt_str()}")
             return self.schema
 
-        def craft_from_json(self, schema_json: str):
+        def craft_from_json(self, schema_json: str, verbose=False):
             """
-            uses LLM to craft the graph schema based on a JSON-like definition.
+            Crafts a schema object from JSON input using a large language model (LLM) for
+            schema inference. This method validates the LLM, generates a structured prompt
+            based on the input JSON, and invokes the LLM to produce the schema.
 
-            Args:
-                schema_json (str): A JSON-like dictionary defining the schema.
+            Parameters:
+                schema_json (str): The JSON string representing the schema from which the
+                schema needs to be crafted.
+
+                verbose (bool, optional): A flag to determine whether to print the full
+                detailed schema or a brief version. Defaults to False.
+
+            Returns:
+                The crafted schema object produced by the LLM.
             """
             self._validate_llm()
             prompt = SCHEMA_FROM_DICT_TEMPLATE.invoke({'context':schema_json})
             # Use structured LLM for schema inference
             self.schema = self.llm.invoke(prompt)
-            print(f"[Schema] Crafted schema:\n {self.schema.prompt_str()}")
+            if verbose:
+                print(f"[Schema] Generated schema:\n {self.schema.prompt_str()}")
+            else:
+                print(f"[Schema] Successfully Crafted schema")
             return self.schema
 
+        def from_json_like_file(self, file_path, verbose=False) -> GraphSchema:
+            """
+            Reads a JSON-like model from a file and crafts a GraphSchema object.
+
+            This method reads the content of a specified file containing a JSON-like model
+            definition, and then processes it to generate a GraphSchema object using the
+            craft_from_json method. Optionally, it can provide verbose output during the
+            process.
+
+            Args:
+                file_path: The path to the file containing the JSON-like model to load.
+                verbose: A boolean flag indicating whether verbose output of the resulting schema should be enabled
+                . Defaults to False.
+
+            Returns:
+                A GraphSchema object generated from the JSON-like model in the file.
+
+            Raises:
+                IOError: If there's an issue opening or reading the specified file.
+                Any other exception raised by the craft_from_json method in the crafting
+                process.
+            """
+
+            with open(file_path, 'r') as f:
+                json_like_model = f.read()
+            return self.craft_from_json(json_like_model, verbose)
 
         def define(self, graph_schema: GraphSchema):
             """
@@ -178,8 +216,7 @@ class GraphRAG:
 
             try:
                 # Convert the schema to a dictionary and write it to a JSON file
-                with open(file_path, 'w') as file:
-                    json.dump(self.schema.model_dump(), file, indent=4)  # Assuming GraphSchema supports `to_dict()`
+                self.schema.export(file_path)
                 print(f"[Schema] Schema successfully exported to {file_path}")
             except Exception as e:
                 print(f"[Schema] Error exporting schema to {file_path}: {e}")
@@ -253,14 +290,22 @@ class GraphRAG:
 
         def merge_nodes(self, label:str, records: List[Dict], source_metadata: Union[bool, Dict[str, Any]] = True):
             """
-            Merges nodes into the database using the provided label and record data.
+            Merges node data into the graph  using the provided label and record data.
 
             Parameters:
                 label (str): The label of the node type to merge (e.g., "Person", "Movie").
                              The label should match a defined node in the graph schema.
                 records List[Dict]: A list of dictionaries representing the data for each node to be merged.
-                                Each record MUST include the `id` field as defined in the node schema, along with
-                                any other optional properties expected by the schema.
+                            Each record MUST include the `id` field as defined in the node schema, along with
+                            any other optional properties expected by the schema.
+                source_metadata : Union[bool, Dict[str, Any]], optional
+                            Metadata for the source being merged.
+                            - If set to `True`, default source metadata is prepared and added to a __Source__ node in the graph.
+                            A __source_id property is added and/or appended to each node which maps to the id property of __Source__ node
+                            - If `False`, no source metadata is added to the graph.
+                            - If a custom dictionary is provided, source metadata is added as in the case of `True` and the dictionary properties override the default ones.
+                            Default is True.
+
 
             Example:
                 label = "Person"
@@ -294,6 +339,13 @@ class GraphRAG:
                 end_node_label (str): The label of the ending node in the relationship (e.g., "Movie").
                                       This label should match a defined node schema.
                 records (Dict): A dictionary (or list of dictionaries) representing the data for each relationship to be merged.
+                source_metadata : Union[bool, Dict[str, Any]], optional
+                            Metadata for the source being merged.
+                            - If set to `True`, default source metadata is prepared and added to a __Source__ node in the graph.
+                            A __source_id property is added and/or appended to each node and relationship which maps to the id property of __Source__ node
+                            - If `False`, no source metadata is added to the graph.
+                            - If a custom dictionary is provided, source metadata is added as in the case of `True` and the dictionary properties override the default ones.
+                            Default is True.
 
             Required Fields in `records`:
                 - `start_node_id`: The unique identifier of the starting node.
