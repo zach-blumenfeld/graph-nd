@@ -123,11 +123,14 @@ class SubGraph(BaseModel):
             # Filter out invalid relationships where start/end node IDs are missing
             df = df.dropna(subset=["start_node_id", "end_node_id"])
 
-            # Ensure that start/end node IDs exist in the validated NodeData
-            valid_start_node_ids = node_label_dfs[rel_triple[0]]["__SCHEMA_NODE_ID__"].to_list()
-            df = df[df['start_node_id'].isin(valid_start_node_ids)]
-            valid_end_node_ids = node_label_dfs[rel_triple[2]]["__SCHEMA_NODE_ID__"].to_list()
-            df = df[df['end_node_id'].isin(valid_end_node_ids)]
+            #TODO: I Don't think we need this validation anymore after changing relationship merge
+            # from MATCH-MATCH-MERGE to MERGE-MERGE-MERGE Pattern
+            # Should research more to be sure
+            ## Ensure that start/end node IDs exist in the validated NodeData
+            #valid_start_node_ids = node_label_dfs[rel_triple[0]]["__SCHEMA_NODE_ID__"].to_list()
+            #df = df[df['start_node_id'].isin(valid_start_node_ids)]
+            #valid_end_node_ids = node_label_dfs[rel_triple[2]]["__SCHEMA_NODE_ID__"].to_list()
+            #df = df[df['end_node_id'].isin(valid_end_node_ids)]
             #add validated relations
             rel_triple_dfs[rel_triple] = df
 
