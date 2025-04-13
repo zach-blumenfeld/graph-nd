@@ -1,3 +1,4 @@
+import os
 import unittest
 import json
 from pathlib import Path
@@ -6,13 +7,14 @@ from graph_nd import GraphSchema, SubSchema
 
 
 class TestGraphSchemaSubset(unittest.TestCase):
+    DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 
     @classmethod
     def setUpClass(cls):
         """
         Load the movie schema JSON file once for all tests.
         """
-        with open(Path("data/movie-schema-animal.json"), "r") as file:
+        with open(os.path.join(cls.DATA_DIR, "movie-schema-animal.json"), "r") as file:
             cls.graph_data = json.load(file)
         cls.graph_schema = GraphSchema(**cls.graph_data)
 

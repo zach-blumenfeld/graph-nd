@@ -1,19 +1,18 @@
 import json
+import os
 from unittest import TestCase
 from pathlib import Path
 from graph_nd.graphrag.graph_schema import GraphSchema, NodeSchema
 from graph_nd.graphrag.graph_data import NodeData
 
-# Filepath for `movie-schema.json`
-SCHEMA_FILE_PATH = Path("data/movie-schema.json")
-
 
 class TestMakeNodeMergeQuery(TestCase):
+    DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 
     @classmethod
     def setUpClass(cls):
         """Load the GraphSchema from the JSON file once for all test cases"""
-        with open(SCHEMA_FILE_PATH, "r") as f:
+        with open(os.path.join(cls.DATA_DIR, "movie-schema.json"), "r") as f:
             data = json.load(f)
             cls.graph_schema = GraphSchema(**data)  # Parse JSON into GraphSchema
 
