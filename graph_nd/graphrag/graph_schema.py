@@ -188,6 +188,17 @@ class GraphSchema(Element):
                 return node
         raise ValueError(f"No NodeSchema found with the label '{label}'")
 
+    def export(self, file_path):
+        """
+        Exports graph schema model to a JSON file.
+
+        Args:
+            file_path (str): The path to the file where the schema will be saved.
+        """
+        # Convert the schema to a dictionary and write it to a JSON file
+        with open(file_path, 'w') as file:
+            json.dump(self.model_dump(), file, indent=4)
+
     def get_relationship_schema_by_type(self, rel_type: str) -> RelationshipSchema:
         """
         Retrieve a specific relationship schema by its type.

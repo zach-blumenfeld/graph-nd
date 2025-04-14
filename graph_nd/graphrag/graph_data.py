@@ -14,7 +14,18 @@ from graph_nd.graphrag.source_metadata import SourceType, TransformType, LoadTyp
 def chunks(xs, n=10_000):
     n = max(1, n)
     return [xs[i:i + n] for i in range(0, len(xs), n)]
-#TODO: Can we remove skip?
+
+#TODO: Currently uses UNIQUE instead of Key for Community.  Consider revizing later.
+def create_constraint_if_not_exists(node_schema:NodeSchema, db_client):
+    """
+    Create a unique constraint for the node label and property id if it doesn't exist in the database.
+    """
+    db_client.execute_query(
+        f'CREATE CONSTRAINT unique_{node_schema.label.lower()}_{node_schema.id.name} IF NOT EXISTS FOR (n:{node_schema.label}) REQUIRE n.{node_schema.id.name} IS UNIQUE',
+        routing_=RoutingControl.WRITE
+    )
+
+#TODO: Can we remove the `skip` argument?
 def make_set_clause(prop_names: List[str], element_name='n', item_name='rec', skip=None):
     if skip is None:
         skip = []
@@ -117,16 +128,6 @@ class NodeData(BaseModel):
     """
     node_schema: NodeSchema = Field(description="schema for the nodes")
     records: List[Dict[str, Any]] = Field(default_factory=list, description="records of node properties mapping property names to values.")
-
-    #TODO: Currently uses UNIQUE instead of Key for Community.  Consider revizing later.
-    def create_constraint_if_not_exists(self, db_client):
-        """
-        Create a unique constraint for the node label and property id if it doesn't exist in the database.
-        """
-        db_client.execute_query(
-            f'CREATE CONSTRAINT unique_{self.node_schema.label.lower()}_{self.node_schema.id.name} IF NOT EXISTS FOR (n:{self.node_schema.label}) REQUIRE n.{self.node_schema.id.name} IS UNIQUE',
-            routing_=RoutingControl.WRITE
-        )
 
     def create_fulltext_index_if_not_exists(self, db_client, prop_name):
         """
@@ -240,7 +241,7 @@ class NodeData(BaseModel):
             query = self.make_node_merge_query()
 
         # set constraint
-        self.create_constraint_if_not_exists(db_client)
+        create_constraint_if_not_exists(self.node_schema, db_client)
 
         #execute in chunks
         for recs in chunks(self.records, chunk_size):
@@ -269,7 +270,7 @@ class RelationshipData(BaseModel):
         merge_statement = f'MERGE(s)-[r:{self.rel_schema.type}]->(t)'
         skip_set_props = ['start_node_id','end_node_id']
         if self.rel_schema.id is not None:
-            merge_statement = f'MERGE(s)-[r:{self.rel_schema.type} {{{self.rel_schema.id.name}: rec.{self.rel_schema.type}}}]->(t)'
+            merge_statement = f'MERGE(s)-[r:{self.rel_schema.type} {{{self.rel_schema.id.name}: rec.{self.rel_schema.id.name}}}]->(t)'
             skip_set_props.append(self.rel_schema.id.name)
 
         template = f'''\tUNWIND $recs AS rec
@@ -302,6 +303,10 @@ class RelationshipData(BaseModel):
         else:
             # make query
             query = self.make_rel_merge_query()
+
+        # set constraints
+        create_constraint_if_not_exists(self.start_node_schema, db_client)
+        create_constraint_if_not_exists(self.end_node_schema, db_client)
 
         # execute in chunks
         for recs in chunks(self.records, chunk_size):
