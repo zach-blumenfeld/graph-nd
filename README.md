@@ -121,7 +121,7 @@ graphrag.agent("What components have the most inputs?")
    
    OPEN_AI_API_KEY = ... # or subistute your preffered LLM/Embedding provider(s)
 ```
-Run provided examples or scripts in the `examples/` directory
+Run provided examples or scripts in the `examples/` directory. [quickstart-example.ipynb](examples/components/quickstart-example.ipynb) is a great 101 for getting started quickly.  [retail-example](examples/retail/retail-example.ipynb) is a good second resources for understanding more options and how  to add more control and precision to graphrag workflows. 
 
 ## **Feedback & Contributions**
 Feedback and ideas are welcome! Join the development conversation or raise issues for improvements. Let’s make GraphRAG accessible to everyone!
