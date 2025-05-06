@@ -6,24 +6,24 @@
             "id": {
                 "description": "",
                 "name": "productCode",
-                "type": "INTEGER"
+                "type": "integer"
             },
             "label": "Product",
             "properties": [
                 {
                     "description": "",
                     "name": "description",
-                    "type": "STRING"
+                    "type": "string"
                 },
                 {
                     "description": "",
                     "name": "name",
-                    "type": "STRING"
+                    "type": "string"
                 },
                 {
                     "description": "",
                     "name": "productCode",
-                    "type": "INTEGER"
+                    "type": "integer"
                 }
             ],
             "searchFields": [
@@ -46,24 +46,24 @@
             "id": {
                 "description": "",
                 "name": "supplierId",
-                "type": "INTEGER"
+                "type": "integer"
             },
             "label": "Supplier",
             "properties": [
                 {
                     "description": "",
                     "name": "address",
-                    "type": "STRING"
+                    "type": "string"
                 },
                 {
                     "description": "",
                     "name": "name",
-                    "type": "STRING"
+                    "type": "string"
                 },
                 {
                     "description": "",
                     "name": "supplierId",
-                    "type": "INTEGER"
+                    "type": "integer"
                 }
             ],
             "searchFields": [
@@ -86,38 +86,32 @@
             "id": {
                 "description": "",
                 "name": "creditNoteId",
-                "type": "STRING"
+                "type": "string"
             },
             "label": "CreditNote",
             "properties": [
                 {
                     "description": "",
                     "name": "amount",
-                    "type": "FLOAT"
+                    "type": "float"
                 },
                 {
                     "description": "",
                     "name": "creditNoteId",
-                    "type": "STRING"
+                    "type": "string"
                 },
                 {
                     "description": "",
                     "name": "date",
-                    "type": "STRING"
+                    "type": "string"
                 },
                 {
                     "description": "",
                     "name": "reason",
-                    "type": "STRING"
+                    "type": "string"
                 }
             ],
             "searchFields": [
-                {
-                    "description": "",
-                    "name": "date_textembedding",
-                    "type": "TEXT_EMBEDDING",
-                    "calculatedFrom": "date"
-                },
                 {
                     "description": "",
                     "name": "reason_textembedding",
@@ -131,44 +125,44 @@
             "id": {
                 "description": "",
                 "name": "customerId",
-                "type": "STRING"
+                "type": "string"
             },
             "label": "Customer",
             "properties": [
                 {
                     "description": "",
                     "name": "address",
-                    "type": "STRING"
+                    "type": "string"
                 },
                 {
                     "description": "",
                     "name": "age",
-                    "type": "INTEGER"
+                    "type": "integer"
                 },
                 {
                     "description": "",
                     "name": "clubMemberStatus",
-                    "type": "STRING"
+                    "type": "string"
                 },
                 {
                     "description": "",
                     "name": "customerId",
-                    "type": "STRING"
+                    "type": "string"
                 },
                 {
                     "description": "",
                     "name": "fashionNewsFrequency",
-                    "type": "STRING"
+                    "type": "string"
                 },
                 {
                     "description": "",
                     "name": "name",
-                    "type": "STRING"
+                    "type": "string"
                 },
                 {
                     "description": "",
                     "name": "postalCode",
-                    "type": "STRING"
+                    "type": "string"
                 }
             ],
             "searchFields": [
@@ -195,12 +189,6 @@
                     "name": "name_textembedding",
                     "type": "TEXT_EMBEDDING",
                     "calculatedFrom": "name"
-                },
-                {
-                    "description": "",
-                    "name": "postalCode_textembedding",
-                    "type": "TEXT_EMBEDDING",
-                    "calculatedFrom": "postalCode"
                 }
             ]
         },
@@ -209,68 +197,61 @@
             "id": {
                 "description": "",
                 "name": "orderId",
-                "type": "INTEGER"
+                "type": "integer"
             },
             "label": "Order",
             "properties": [
                 {
                     "description": "",
                     "name": "date",
-                    "type": "STRING"
+                    "type": "string"
                 },
                 {
                     "description": "",
                     "name": "orderId",
-                    "type": "INTEGER"
+                    "type": "integer"
                 }
             ],
-            "searchFields": [
-                {
-                    "description": "",
-                    "name": "date_textembedding",
-                    "type": "TEXT_EMBEDDING",
-                    "calculatedFrom": "date"
-                }
-            ]
+            "searchFields": []
         },
         {
             "description": "",
             "id": {
                 "description": "",
                 "name": "articleId",
-                "type": "INTEGER"
+                "type": "integer"
             },
             "label": "Article",
             "properties": [
                 {
                     "description": "",
                     "name": "articleId",
-                    "type": "INTEGER"
+                    "type": "integer"
                 },
                 {
                     "description": "",
                     "name": "colourGroupCode",
-                    "type": "INTEGER"
+                    "type": "integer"
                 },
                 {
                     "description": "",
                     "name": "colourGroupName",
-                    "type": "STRING"
+                    "type": "string"
                 },
                 {
                     "description": "",
                     "name": "graphicalAppearanceName",
-                    "type": "STRING"
+                    "type": "string"
                 },
                 {
                     "description": "",
                     "name": "graphicalAppearanceNo",
-                    "type": "INTEGER"
+                    "type": "integer"
                 },
                 {
                     "description": "",
                     "name": "name",
-                    "type": "STRING"
+                    "type": "string"
                 }
             ],
             "searchFields": [
@@ -299,14 +280,14 @@
             "id": {
                 "description": "",
                 "name": "name",
-                "type": "STRING"
+                "type": "string"
             },
             "label": "ProductType",
             "properties": [
                 {
                     "description": "",
                     "name": "name",
-                    "type": "STRING"
+                    "type": "string"
                 }
             ],
             "searchFields": [
@@ -323,14 +304,14 @@
             "id": {
                 "description": "",
                 "name": "name",
-                "type": "STRING"
+                "type": "string"
             },
             "label": "ProductCategory",
             "properties": [
                 {
                     "description": "",
                     "name": "name",
-                    "type": "STRING"
+                    "type": "string"
                 }
             ],
             "searchFields": [

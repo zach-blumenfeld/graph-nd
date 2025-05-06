@@ -19,7 +19,8 @@ from graph_nd.graphrag.graph_data import NodeData, RelationshipData, GraphData
 from graph_nd.graphrag.graph_schema import GraphSchema, NodeSchema, SubSchema
 from graph_nd.graphrag.graph_records import SubGraph, SubGraphNodes
 from graph_nd.graphrag.source_metadata import SourceType, TransformType, LoadType, prepare_source_metadata
-from graph_nd.graphrag.table_mapping import TableTypeEnum, TableType, NodeTableMapping, RelTableMapping
+from graph_nd.graphrag.table_mapping import TableTypeEnum, TableType, NodeTableMapping, RelTableMapping, NodeMapping, \
+    RelMapping
 from graph_nd.graphrag.prompt_templates import SCHEMA_FROM_DESC_TEMPLATE, SCHEMA_FROM_SAMPLE_TEMPLATE, \
     SCHEMA_FROM_DICT_TEMPLATE, \
     TABLE_TYPE_TEMPLATE, NODE_MAPPING_TEMPLATE, RELATIONSHIPS_MAPPING_TEMPLATE, TEXT_EXTRACTION_TEMPLATE, \
@@ -509,15 +510,65 @@ class GraphRAG:
             else:
                 raise ValueError(f"[Data] Unable to determine table type for {file_path}. Got table_type={table_type} instead.")
 
-        def merge_csvs(self, file_paths: List[str], source_metadata: Union[bool, Dict[str, Any]] = True):
+        def merge_csvs(
+                self,
+                file_paths: Optional[List[str]] = None,
+                table_mappings: Optional[List[Union[NodeMapping, RelMapping]]] = None,
+                source_metadata: Union[bool, Dict[str, Any]] = True
+        ):
             """
-            Merges data from CSV files into the knowledge graph.
+            Merges data into the knowledge graph from CSV files or via user-specified mappings.
 
             Args:
-                file_paths (List[str]): The file paths to csvs
+                file_paths (Optional[List[str]]): The file paths to CSVs for which mappings should be inferred.
+                node_mappings (Optional[List[NodeMapping]]): List of user-defined node mappings.
+                    If provided, file_paths must be None.
+                rel_mappings (Optional[List[RelMapping]]): List of user-defined relationship mappings.
+                    If provided, file_paths must be None.
+                source_metadata (Union[bool, Dict[str, Any]], optional): Metadata for the source. Defaults to True.
+
+            Raises:
+                ValueError: If both file_paths and mappings are supplied, or neither is provided.
             """
-            for file_path in file_paths:
-                self.merge_csv(file_path, source_metadata)
+            if file_paths and table_mappings:
+                raise ValueError("You cannot provide both file_paths and table_mappings.")
+            if not file_paths and not table_mappings:
+                raise ValueError("You must provide either file_paths or table_mappings (node_mappings and/or rel_mappings).")
+
+            if file_paths:
+                # Original behavior: Infer mappings from file paths and merge
+                for file_path in file_paths:
+                    self.merge_csv(file_path, source_metadata)
+
+            if table_mappings:
+            # Use user-specified mappings
+                for mapping in table_mappings:
+                    if isinstance(mapping, NodeMapping):
+                        node_table_mapping = mapping.to_table_mapping()
+                        file_path = node_table_mapping.tableName
+                        table_records = read_csv(file_path)
+                        default_source_metadata = {
+                            "id": f"merge_nodes_from_csv_table_{os.path.basename(file_path)}_at_{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                            "sourceType": SourceType.STRUCTURED_TABLE_CSV.value,
+                            "transformType": TransformType.TABLE_MAPPING_TO_NODE.value,
+                            "name": os.path.basename(file_path),
+                            "file": file_path,
+                        }
+                        metadata = prepare_source_metadata(source_metadata, default_source_metadata)
+                        self.merge_node_table(table_records, node_table_mapping, metadata)
+                    elif isinstance(mapping, RelMapping):
+                        rel_table_mapping = mapping.to_table_mapping()
+                        file_path = rel_table_mapping.tableName
+                        table_records = read_csv(file_path)
+                        default_source_metadata = {
+                            "id": f"merge_nodes_and_rels_from_csv_table_{os.path.basename(file_path)}_at_{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                            "sourceType": SourceType.STRUCTURED_TABLE_CSV.value,
+                            "transformType": TransformType.TABLE_MAPPING_TO_NODES_AND_RELATIONSHIPS.value,
+                            "name": os.path.basename(file_path),
+                            "file": file_path,
+                        }
+                        metadata = prepare_source_metadata(source_metadata, default_source_metadata)
+                        self.merge_relationships_from_table(table_records, rel_table_mapping, metadata)
 
         async def extract_nodes_from_text(self, file_path, text, sub_schema:SubSchema=None) -> GraphData:
             graph_schema:GraphSchema = self.graphrag.schema.schema.subset(sub_schema) if sub_schema else self.graphrag.schema.schema
