@@ -795,7 +795,7 @@ class GraphRAG:
                               search_query:str,
                               node_label: str,
                               search_prop:str,
-                              top_k=10) -> str:
+                              top_k:int=10) -> str:
 
         index_name = f'vector_{node_label.lower()}_{self.schema.schema.get_node_search_field_name(node_label, search_prop)}'
         return_props = self.schema.schema.get_node_properties(node_label)
@@ -815,7 +815,7 @@ class GraphRAG:
         )
         return json.dumps(res, indent=4)
 
-    def node_search(self, search_config:Dict[str,str], search_query:str, top_k=10):
+    def node_search(self, search_config:Dict[str,str], search_query:str, top_k:int=10):
         """
         Performs a search operation on nodes using different modes such as full-text
         or semantic searches. The method executes the search by delegating

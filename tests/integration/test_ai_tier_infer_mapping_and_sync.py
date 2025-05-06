@@ -205,8 +205,8 @@ class TestAITierInferMappingAndSync(unittest.TestCase):
         Clean up the Snowflake data sources and neo4j after testing.
         """
         # Drop databases
-        cls.session_product.sql("DROP DATABASE IF EXISTS PRODUCTS_DB").collect()
-        cls.session_bom.sql("DROP DATABASE IF EXISTS BOM_DB").collect()
+        # cls.session_product.sql("DROP DATABASE IF EXISTS PRODUCTS_DB").collect()
+        # cls.session_bom.sql("DROP DATABASE IF EXISTS BOM_DB").collect()
 
         # Close Snowflake sessions
         cls.session_product.close()
