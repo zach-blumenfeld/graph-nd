@@ -1,11 +1,12 @@
 import json
 
-from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any, Union, List, Tuple
+from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Optional, Dict, Any, Union, List, Tuple, Self
 import yaml  # Import PyYAML for YAML serialization
 
 from graph_nd.graphrag.utils import validate_list_type
 
+NEO4J_PROPERTY_TYPES = {"STRING", "INTEGER", "FLOAT", "BOOLEAN", "DATE", "DATETIME"}
 class SubSchema:
     def __init__(self, nodes: Union[str, List[str]] = None,
                  patterns: Union[Tuple[str, str, str], List[Tuple[str, str, str]]] = None,
@@ -66,8 +67,14 @@ class PropertySchema(Element):
     """
     A property of either a node or relationship
     """
-    name: str= Field(description="name of the property")
+    name: str = Field(description="name of the property")
     type: str = Field(description="data type of the property, STRING, INTEGER, etc.")
+
+    @field_validator("type")
+    def validate_type(cls, v):
+        if v.upper() not in NEO4J_PROPERTY_TYPES:
+            raise ValueError(f"Invalid property type. Must be one of: {NEO4J_PROPERTY_TYPES}")
+        return v.upper()
 
 class SearchFieldSchema(Element):
     """
@@ -88,6 +95,20 @@ class NodeSchema(Element):
         default_factory=list, description="Other properties for the node. must include at least the key property"
     )
     searchFields: List[SearchFieldSchema] = Field(default_factory=list, description="fields used for semantic search, sourced from properties.")
+
+    @field_validator("properties")
+    def validate_properties(cls, v: list[PropertySchema]) -> list[PropertySchema]:
+        if not v:
+            raise ValueError("properties must contain at least one property.")
+        return v
+    
+    @model_validator(mode="after")
+    def validate_id_property_in_properties(self) -> Self:
+        if not any(p.name == self.id.name for p in self.properties):
+            raise ValueError(f"properties must contain the key property. id: {self.id.name}")
+        return self
+    
+
 
 class QueryPattern(Element):
     """
