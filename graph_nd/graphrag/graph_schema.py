@@ -1,6 +1,6 @@
 import json
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ValidationInfo
 from typing import Optional, Dict, Any, Union, List, Tuple, Self
 import yaml  # Import PyYAML for YAML serialization
 
@@ -99,25 +99,17 @@ class NodeSchema(Element):
     id: PropertySchema = Field(description="the property to use as the unique non-null identifier for the node")
     label: str = Field(description="Type of the node (e.g., Person, Location, etc.). Should be Title CamelCase to conform to style standards.")
     properties: List[PropertySchema] = Field(
-        default_factory=list, description="Other properties for the node. must include at least the key property"
+        default_factory=list, description="Other properties for the node."
     )
     searchFields: List[SearchFieldSchema] = Field(default_factory=list, description="fields used for semantic search, sourced from properties.")
-
-    @field_validator("properties")
-    def validate_properties(cls, v: list[PropertySchema]) -> list[PropertySchema]:
-        if not v:
-            raise ValueError("`properties` field must contain at least one property.")
-        return v
     
-    @model_validator(mode="after")
-    def validate_id_property_in_properties(self) -> Self:
+    @field_validator("searchFields")
+    def validate_search_fields(cls, v: list[SearchFieldSchema], info: ValidationInfo) -> list[SearchFieldSchema]:
         # Ensure id is included in properties
-        if not any(p.name == self.id.name for p in self.properties):
-            # If the ID property isn't in the properties list, add it
-            self.properties.append(self.id)
-        if not {sf.calculatedFrom for sf in self.searchFields}.issubset({p.name for p in self.properties}):
-            raise ValueError("`searchFields` must only contain `calculatedFrom` field values from property names in the `properties` field.")
-        return self
+        all_props = info.data["properties"] + [info.data["id"]]
+        if not {sf.calculatedFrom for sf in v}.issubset({p.name for p in all_props}):
+            raise ValueError("`searchFields` must only contain `calculatedFrom` field values from property names in the `properties`  or `id` fields.")
+        return v
     
 
 class QueryPattern(Element):
@@ -140,13 +132,6 @@ class RelationshipSchema(Element):
     properties: List[PropertySchema] = Field(
         default_factory=list, description="Properties for the relationship. must include at least the key property"
     )
-
-    @model_validator(mode="after")
-    def validate_id_property_in_properties(self) -> Self:
-        if self.id is not None and not any(p.name == self.id.name for p in self.properties):
-            # If the ID property isn't in the properties list, add it
-            self.properties.append(self.id)
-        return self
     
     
     #TODO: We probably need better data structures to index rather than scanning lists...but we shouldn't be doing this a lot at runtime so not prioritizing currently

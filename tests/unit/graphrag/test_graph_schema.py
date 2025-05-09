@@ -63,14 +63,7 @@ def test_node_schema_validation_invalid_no_id():
         NodeSchema(label="A", properties=[property_a])
 
 
-def test_node_schema_validation_invalid_no_properties():
-    with pytest.raises(ValueError) as e:
-        NodeSchema(label="A", properties=[])
-    assert "`properties` field must contain at least one property" in str(e.value)
 
-def test_node_schema_validation_valid_id_property_not_in_properties(property_a: PropertySchema, property_b: PropertySchema):
-    node = NodeSchema(label="A", id=property_a, properties=[property_b])
-    assert node.properties == [property_b, property_a]
 
 def test_node_schema_validation_invalid_search_fields_not_in_properties(property_a: PropertySchema):
     search_field = SearchFieldSchema(name="embedding", type="TEXT_EMBEDDING", calculatedFrom="b")
@@ -88,7 +81,6 @@ def test_relationship_schema_validation_valid_no_properties(query_pattern_ab: Qu
 
 def test_relationship_schema_validation_valid_id_with_no_properties(property_d: PropertySchema, query_pattern_ab: QueryPattern):
     relationship = RelationshipSchema(type="AB", id=property_d, queryPatterns=[query_pattern_ab])
-    assert relationship.properties == [property_d]
 
 def test_relationship_schema_validation_invalid_no_query_patterns():
     with pytest.raises(ValueError) as e:
