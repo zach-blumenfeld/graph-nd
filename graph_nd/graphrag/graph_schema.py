@@ -7,6 +7,7 @@ import yaml  # Import PyYAML for YAML serialization
 from graph_nd.graphrag.utils import validate_list_type
 
 NEO4J_PROPERTY_TYPES = {"STRING", "INTEGER", "FLOAT", "BOOLEAN", "DATE", "DATETIME"}
+
 class SubSchema:
     def __init__(self, nodes: Union[str, List[str]] = None,
                  patterns: Union[Tuple[str, str, str], List[Tuple[str, str, str]]] = None,
@@ -135,21 +136,16 @@ class RelationshipSchema(Element):
                                       "only necessary for parallel relationship (more than one instance of a "
                                       "relationships of the same type between the same start and end nodes.  ")
     type: str = Field(description="The relationship type.  Should be in all caps to conform to style standards.")
-    queryPatterns: List[QueryPattern] = Field(default_factory=list, description="Query patterns for the relationship")
+    queryPatterns: List[QueryPattern] = Field(description="Query patterns for the relationship")
     properties: List[PropertySchema] = Field(
         default_factory=list, description="Properties for the relationship. must include at least the key property"
     )
 
-    @field_validator("queryPatterns")
-    def validate_query_patterns(cls, v: list[QueryPattern]) -> list[QueryPattern]:
-        if not v:
-            raise ValueError("`queryPatterns` field must contain at least one query pattern.")
-        return v
-
     @model_validator(mode="after")
     def validate_id_property_in_properties(self) -> Self:
         if self.id is not None and not any(p.name == self.id.name for p in self.properties):
-            raise ValueError(f"`properties` field must contain the key property in `RelationshipSchema.id`. Id property name: {self.id.name}")
+            # If the ID property isn't in the properties list, add it
+            self.properties.append(self.id)
         return self
     
     
@@ -198,29 +194,22 @@ class GraphSchema(Element):
             raise ValueError("`nodes` field must contain at least one node.")
         return v
     
-    @field_validator("relationships")
-    def validate_relationships(cls, v: list[RelationshipSchema]) -> list[RelationshipSchema]:
-        # We want to allow empty relationships list when creating a subset
-        # The full validation happens in the model-level validator
-        return v
     
     @model_validator(mode="after")
     def validate_relationship_nodes(self) -> "GraphSchema":
         """Validate that node labels referenced in relationships exist in the nodes list"""
-        # Get all node labels
-        node_labels = {node.label for node in self.nodes}
-        
-        # Skip validation if there are no nodes (allowing empty schemas)
-        if not node_labels:
-            return self
+
+        if self.relationships:
+            # Get all node labels
+            node_labels = {node.label for node in self.nodes}
             
-        # Check that all relationship patterns reference valid nodes
-        for relationship in self.relationships:
-            for pattern in relationship.queryPatterns:
-                if pattern.startNode not in node_labels:
-                    raise ValueError(f"Relationship {relationship.type} has `queryPattern` with `startNode` label: {pattern.startNode} not found in `nodes` field.")
-                if pattern.endNode not in node_labels:
-                    raise ValueError(f"Relationship {relationship.type} has `queryPattern` with `endNode` label: {pattern.endNode} not found in `nodes` field.")
+            # Check that all relationship patterns reference valid nodes
+            for relationship in self.relationships:
+                for pattern in relationship.queryPatterns:
+                    if pattern.startNode not in node_labels:
+                        raise ValueError(f"Relationship {relationship.type} has `queryPattern` with `startNode` label: {pattern.startNode} not found in `nodes` field.")
+                    if pattern.endNode not in node_labels:
+                        raise ValueError(f"Relationship {relationship.type} has `queryPattern` with `endNode` label: {pattern.endNode} not found in `nodes` field.")
         
         return self
 
