@@ -52,13 +52,13 @@ class TestGraphRAGMergePDF(unittest.TestCase):
 
     def test_merge_pdf(self):
         # Verify merge_pdf integration
-        for i in range(2): #less than 1% of the time the llm will miss nodes/rels. This is random so repeating twice ensure we get everything
-            self.graphrag.data.merge_pdf(self.pdf_file, nodes_only=False,
-                                    sub_schema=SubSchema(patterns=[
-                                        ('CreditNote', 'REFUND_FOR_ORDER', 'Order'),
-                                        ('CreditNote', "REFUND_OF_ARTICLE", 'Article')]
-                                        )
-                                    )
+        self.graphrag.data.merge_pdf(self.pdf_file, nodes_only=False,
+                                sub_schema=SubSchema(patterns=[
+                                    ('CreditNote', 'REFUND_FOR_ORDER', 'Order'),
+                                    ('CreditNote', "REFUND_OF_ARTICLE", 'Article')]
+                                    ),
+                                chunk_size=4, #turn down chunk size for higher quality extraction
+                                max_workers=15)
 
         #ensure node label counts
         node_label_counts = [
@@ -75,7 +75,7 @@ class TestGraphRAGMergePDF(unittest.TestCase):
                 "nodeLabels": [ "Order"]
             },
             {
-                "cnt": 2,
+                "cnt": 1,
                 "nodeLabels": ["__Source__"]
             }
         ]
