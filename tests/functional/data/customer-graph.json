@@ -128,7 +128,7 @@
                 {
                     "description": "",
                     "name": "date",
-                    "type": "DATE_TIME"
+                    "type": "DATETIME"
                 }
             ],
             "searchFields": []
@@ -141,7 +141,11 @@
                 "type": "STRING"
             },
             "label": "ProductCategory",
-            "properties": [],
+            "properties": [{
+                "description": "",
+                "name": "name",
+                "type": "STRING"
+            }],
             "searchFields": []
         },
         {
@@ -227,8 +231,7 @@
                     "startNode": "Customer",
                     "endNode": "Order"
                 }
-            ],
-            "properties": []
+            ]
         },
         {
             "description": "",
@@ -240,8 +243,7 @@
                     "startNode": "CreditNote",
                     "endNode": "Article"
                 }
-            ],
-            "properties": []
+            ]
         },
         {
             "description": "",
@@ -253,8 +255,7 @@
                     "startNode": "CreditNote",
                     "endNode": "Order"
                 }
-            ],
-            "properties": []
+            ]
         },
         {
             "description": "",
@@ -271,8 +272,7 @@
                     "startNode": "Product",
                     "endNode": "ProductCategory"
                 }
-            ],
-            "properties": []
+            ]
         },
         {
             "description": "",
@@ -284,8 +284,7 @@
                     "startNode": "Article",
                     "endNode": "Product"
                 }
-            ],
-            "properties": []
+            ]
         },
         {
             "description": "",
@@ -316,8 +315,7 @@
                     "startNode": "Article",
                     "endNode": "Supplier"
                 }
-            ],
-            "properties": []
+            ]
         }
     ]
 }
