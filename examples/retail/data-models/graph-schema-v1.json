@@ -1,5 +1,5 @@
 {
-    "description": "",
+    "description": "Graph schema for a customer product and order system.",
     "nodes": [
         {
             "description": "",
@@ -114,12 +114,6 @@
             "searchFields": [
                 {
                     "description": "",
-                    "name": "date_textembedding",
-                    "type": "TEXT_EMBEDDING",
-                    "calculatedFrom": "date"
-                },
-                {
-                    "description": "",
                     "name": "reason_textembedding",
                     "type": "TEXT_EMBEDDING",
                     "calculatedFrom": "reason"
@@ -195,12 +189,6 @@
                     "name": "name_textembedding",
                     "type": "TEXT_EMBEDDING",
                     "calculatedFrom": "name"
-                },
-                {
-                    "description": "",
-                    "name": "postalCode_textembedding",
-                    "type": "TEXT_EMBEDDING",
-                    "calculatedFrom": "postalCode"
                 }
             ]
         },
@@ -224,14 +212,7 @@
                     "type": "INTEGER"
                 }
             ],
-            "searchFields": [
-                {
-                    "description": "",
-                    "name": "date_textembedding",
-                    "type": "TEXT_EMBEDDING",
-                    "calculatedFrom": "date"
-                }
-            ]
+            "searchFields": []
         },
         {
             "description": "",

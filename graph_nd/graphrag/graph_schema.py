@@ -1,10 +1,12 @@
 import json
 
-from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any, Union, List, Tuple
+from pydantic import BaseModel, Field, field_validator, model_validator, ValidationInfo
+from typing import Optional, Dict, Any, Union, List, Tuple, Self
 import yaml  # Import PyYAML for YAML serialization
 
 from graph_nd.graphrag.utils import validate_list_type
+
+NEO4J_PROPERTY_TYPES = {"STRING", "INTEGER", "FLOAT", "BOOLEAN", "DATE", "DATETIME"}
 
 class SubSchema:
     def __init__(self, nodes: Union[str, List[str]] = None,
@@ -66,16 +68,28 @@ class PropertySchema(Element):
     """
     A property of either a node or relationship
     """
-    name: str= Field(description="name of the property")
+    name: str = Field(description="name of the property")
     type: str = Field(description="data type of the property, STRING, INTEGER, etc.")
+
+    @field_validator("type")
+    def validate_type(cls, v):
+        if v.upper() not in NEO4J_PROPERTY_TYPES:
+            raise ValueError(f"Invalid property `type`. Must be one of: {NEO4J_PROPERTY_TYPES}")
+        return v.upper()
 
 class SearchFieldSchema(Element):
     """
     A field used for semantic search such as for vector similarity or fulltext search
     """
-    name: str= Field(description="name of the field")
+    name: str = Field(description="name of the field")
     type: str = Field(description="type of field: TEXT_EMBEDDING, FULLTEXT")
     calculatedFrom: str = Field(description="name of the source property for this field")
+
+    @field_validator("type")
+    def validate_type(cls, v):
+        if v.upper() not in ["TEXT_EMBEDDING", "FULLTEXT"]:
+            raise ValueError(f"Invalid field `type`. Must be one of: TEXT_EMBEDDING, FULLTEXT")
+        return v.upper()
 
 
 class NodeSchema(Element):
@@ -85,13 +99,22 @@ class NodeSchema(Element):
     id: PropertySchema = Field(description="the property to use as the unique non-null identifier for the node")
     label: str = Field(description="Type of the node (e.g., Person, Location, etc.). Should be Title CamelCase to conform to style standards.")
     properties: List[PropertySchema] = Field(
-        default_factory=list, description="Other properties for the node. must include at least the key property"
+        default_factory=list, description="Other properties for the node."
     )
     searchFields: List[SearchFieldSchema] = Field(default_factory=list, description="fields used for semantic search, sourced from properties.")
+    
+    @field_validator("searchFields")
+    def validate_search_fields(cls, v: list[SearchFieldSchema], info: ValidationInfo) -> list[SearchFieldSchema]:
+        # Ensure id is included in properties
+        all_props = info.data["properties"] + [info.data["id"]]
+        if not {sf.calculatedFrom for sf in v}.issubset({p.name for p in all_props}):
+            raise ValueError("`searchFields` must only contain `calculatedFrom` field values from property names in the `properties`  or `id` fields.")
+        return v
+    
 
 class QueryPattern(Element):
     """
-   A query pattern for a relationship describing a start and end node i.e (startNode)-[r]->(endNode)
+   A query pattern for a relationship describing a start and end node i.e. (startNode)-[r]->(endNode)
     """
     startNode:str = Field(description="Starting node label of the relationship query pattern")
     endNode: str = Field(description="Ending node label of the relationship query pattern")
@@ -99,17 +122,18 @@ class QueryPattern(Element):
 
 class RelationshipSchema(Element):
     """
-   A graph relationship. Represents actions or associations between entities
+   A graph relationship. Represents actions or associations between entities.
     """
-    id: Optional[PropertySchema] = Field(None, description="optional property to use as the unique non-null identifier for the relationship.  "
+    id: Optional[PropertySchema] = Field(None, description="optional property to use as the unique non-null identifier for the relationship."
                                       "only necessary for parallel relationship (more than one instance of a "
                                       "relationships of the same type between the same start and end nodes.  ")
     type: str = Field(description="The relationship type.  Should be in all caps to conform to style standards.")
-    queryPatterns: List[QueryPattern] = Field(default_factory=list, description="Query patterns for the relationship")
+    queryPatterns: List[QueryPattern] = Field(description="Query patterns for the relationship")
     properties: List[PropertySchema] = Field(
         default_factory=list, description="Properties for the relationship. must include at least the key property"
     )
-
+    
+    
     #TODO: We probably need better data structures to index rather than scanning lists...but we shouldn't be doing this a lot at runtime so not prioritizing currently
     def get_query_pattern(self, start_node_label:str, end_node_label:str) -> QueryPattern:
         if self.queryPatterns:
@@ -148,6 +172,31 @@ class GraphSchema(Element):
     nodes: List[NodeSchema] = Field(default_factory=list, description="List of nodes in the graph")
     relationships: List[RelationshipSchema] = Field(default_factory=list, description="List of relationships in the graph")
     #trackSources: bool = Field(default=True, description="Set to True unless user specifies otherwise. Whether to track the source of each node and relationship.")
+
+    @field_validator("nodes")
+    def validate_nodes(cls, v: list[NodeSchema]) -> list[NodeSchema]:
+        if not v:
+            raise ValueError("`nodes` field must contain at least one node.")
+        return v
+    
+    
+    @model_validator(mode="after")
+    def validate_relationship_nodes(self) -> "GraphSchema":
+        """Validate that node labels referenced in relationships exist in the nodes list"""
+
+        if self.relationships:
+            # Get all node labels
+            node_labels = {node.label for node in self.nodes}
+            
+            # Check that all relationship patterns reference valid nodes
+            for relationship in self.relationships:
+                for pattern in relationship.queryPatterns:
+                    if pattern.startNode not in node_labels:
+                        raise ValueError(f"Relationship {relationship.type} has `queryPattern` with `startNode` label: {pattern.startNode} not found in `nodes` field.")
+                    if pattern.endNode not in node_labels:
+                        raise ValueError(f"Relationship {relationship.type} has `queryPattern` with `endNode` label: {pattern.endNode} not found in `nodes` field.")
+        
+        return self
 
     def query_model_dump(self, **kwargs) -> dict:
         """

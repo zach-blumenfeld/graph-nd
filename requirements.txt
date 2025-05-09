@@ -8,5 +8,7 @@ PyPDF2
 tqdm
 PyYAML
 pydantic
+pytest
 snowflake-snowpark-python[pandas]
+nest-asyncio
 
