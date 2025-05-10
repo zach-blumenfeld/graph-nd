@@ -128,7 +128,7 @@
                 {
                     "description": "",
                     "name": "date",
-                    "type": "DATETIME"
+                    "type": "DATE_TIME"
                 }
             ],
             "searchFields": []

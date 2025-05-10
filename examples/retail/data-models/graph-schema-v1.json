@@ -1,5 +1,5 @@
 {
-    "description": "Graph schema for a customer product and order system.",
+    "description": "",
     "nodes": [
         {
             "description": "",
@@ -28,16 +28,18 @@
             ],
             "searchFields": [
                 {
-                    "description": "",
+                    "description": "Semantic search field for product description.",
                     "name": "description_textembedding",
                     "type": "TEXT_EMBEDDING",
-                    "calculatedFrom": "description"
+                    "calculatedFrom": "description",
+                    "indexName": "text_embedding_description_dc08e2b4"
                 },
                 {
-                    "description": "",
+                    "description": "Semantic search field for product name.",
                     "name": "name_textembedding",
                     "type": "TEXT_EMBEDDING",
-                    "calculatedFrom": "name"
+                    "calculatedFrom": "name",
+                    "indexName": "text_embedding_name_0961dd7d"
                 }
             ]
         },
@@ -68,16 +70,18 @@
             ],
             "searchFields": [
                 {
-                    "description": "",
+                    "description": "Semantic search field for supplier address.",
                     "name": "address_textembedding",
                     "type": "TEXT_EMBEDDING",
-                    "calculatedFrom": "address"
+                    "calculatedFrom": "address",
+                    "indexName": "text_embedding_address_19867f53"
                 },
                 {
-                    "description": "",
+                    "description": "Semantic search field for supplier name.",
                     "name": "name_textembedding",
                     "type": "TEXT_EMBEDDING",
-                    "calculatedFrom": "name"
+                    "calculatedFrom": "name",
+                    "indexName": "text_embedding_name_0f8e5c01"
                 }
             ]
         },
@@ -113,10 +117,11 @@
             ],
             "searchFields": [
                 {
-                    "description": "",
+                    "description": "Semantic search field for credit note reason.",
                     "name": "reason_textembedding",
                     "type": "TEXT_EMBEDDING",
-                    "calculatedFrom": "reason"
+                    "calculatedFrom": "reason",
+                    "indexName": "text_embedding_reason_6edfb407"
                 }
             ]
         },
@@ -167,28 +172,32 @@
             ],
             "searchFields": [
                 {
-                    "description": "",
+                    "description": "Semantic search field for customer address.",
                     "name": "address_textembedding",
                     "type": "TEXT_EMBEDDING",
-                    "calculatedFrom": "address"
+                    "calculatedFrom": "address",
+                    "indexName": "text_embedding_address_786d3abc"
                 },
                 {
-                    "description": "",
+                    "description": "Semantic search field for customer club member status.",
                     "name": "clubMemberStatus_textembedding",
                     "type": "TEXT_EMBEDDING",
-                    "calculatedFrom": "clubMemberStatus"
+                    "calculatedFrom": "clubMemberStatus",
+                    "indexName": "text_embedding_clubmemberstatus_cc7233b5"
                 },
                 {
-                    "description": "",
+                    "description": "Semantic search field for customer fashion news frequency.",
                     "name": "fashionNewsFrequency_textembedding",
                     "type": "TEXT_EMBEDDING",
-                    "calculatedFrom": "fashionNewsFrequency"
+                    "calculatedFrom": "fashionNewsFrequency",
+                    "indexName": "text_embedding_fashionnewsfrequency_24be9f16"
                 },
                 {
-                    "description": "",
+                    "description": "Semantic search field for customer name.",
                     "name": "name_textembedding",
                     "type": "TEXT_EMBEDDING",
-                    "calculatedFrom": "name"
+                    "calculatedFrom": "name",
+                    "indexName": "text_embedding_name_299bc779"
                 }
             ]
         },
@@ -256,22 +265,25 @@
             ],
             "searchFields": [
                 {
-                    "description": "",
+                    "description": "Semantic search field for article colour group name.",
                     "name": "colourGroupName_textembedding",
                     "type": "TEXT_EMBEDDING",
-                    "calculatedFrom": "colourGroupName"
+                    "calculatedFrom": "colourGroupName",
+                    "indexName": "text_embedding_colourgroupname_1cb3cb82"
                 },
                 {
-                    "description": "",
+                    "description": "Semantic search field for article graphical appearance name.",
                     "name": "graphicalAppearanceName_textembedding",
                     "type": "TEXT_EMBEDDING",
-                    "calculatedFrom": "graphicalAppearanceName"
+                    "calculatedFrom": "graphicalAppearanceName",
+                    "indexName": "text_embedding_graphicalappearancename_144cb900"
                 },
                 {
-                    "description": "",
+                    "description": "Semantic search field for article name.",
                     "name": "name_textembedding",
                     "type": "TEXT_EMBEDDING",
-                    "calculatedFrom": "name"
+                    "calculatedFrom": "name",
+                    "indexName": "text_embedding_name_30fabd06"
                 }
             ]
         },
@@ -292,10 +304,11 @@
             ],
             "searchFields": [
                 {
-                    "description": "",
+                    "description": "Semantic search field for product type name.",
                     "name": "name_textembedding",
                     "type": "TEXT_EMBEDDING",
-                    "calculatedFrom": "name"
+                    "calculatedFrom": "name",
+                    "indexName": "text_embedding_name_b418d9aa"
                 }
             ]
         },
@@ -316,10 +329,11 @@
             ],
             "searchFields": [
                 {
-                    "description": "",
+                    "description": "Semantic search field for product category name.",
                     "name": "name_textembedding",
                     "type": "TEXT_EMBEDDING",
-                    "calculatedFrom": "name"
+                    "calculatedFrom": "name",
+                    "indexName": "text_embedding_name_93ff7500"
                 }
             ]
         }
@@ -327,7 +341,11 @@
     "relationships": [
         {
             "description": "",
-            "id": null,
+            "id": {
+                "description": "",
+                "name": "id",
+                "type": "STRING"
+            },
             "type": "PART_OF",
             "queryPatterns": [
                 {
@@ -340,7 +358,11 @@
         },
         {
             "description": "",
-            "id": null,
+            "id": {
+                "description": "",
+                "name": "id",
+                "type": "STRING"
+            },
             "type": "PART_OF",
             "queryPatterns": [
                 {
@@ -353,7 +375,11 @@
         },
         {
             "description": "",
-            "id": null,
+            "id": {
+                "description": "",
+                "name": "id",
+                "type": "STRING"
+            },
             "type": "REFUND_FOR_ORDER",
             "queryPatterns": [
                 {
@@ -366,7 +392,11 @@
         },
         {
             "description": "",
-            "id": null,
+            "id": {
+                "description": "",
+                "name": "id",
+                "type": "STRING"
+            },
             "type": "REFUND_OF_ARTICLE",
             "queryPatterns": [
                 {
@@ -379,7 +409,11 @@
         },
         {
             "description": "",
-            "id": null,
+            "id": {
+                "description": "",
+                "name": "id",
+                "type": "STRING"
+            },
             "type": "ORDERED",
             "queryPatterns": [
                 {
@@ -392,7 +426,11 @@
         },
         {
             "description": "",
-            "id": null,
+            "id": {
+                "description": "",
+                "name": "id",
+                "type": "STRING"
+            },
             "type": "CONTAINS",
             "queryPatterns": [
                 {
@@ -405,7 +443,11 @@
         },
         {
             "description": "",
-            "id": null,
+            "id": {
+                "description": "",
+                "name": "id",
+                "type": "STRING"
+            },
             "type": "SUPPLIED_BY",
             "queryPatterns": [
                 {
@@ -418,7 +460,11 @@
         },
         {
             "description": "",
-            "id": null,
+            "id": {
+                "description": "",
+                "name": "id",
+                "type": "STRING"
+            },
             "type": "VARIANT_OF",
             "queryPatterns": [
                 {
