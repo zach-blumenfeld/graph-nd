@@ -77,6 +77,7 @@ class PropertySchema(Element):
             raise ValueError(f"Invalid property `type`. Must be one of: {NEO4J_PROPERTY_TYPES}")
         return v.upper()
 
+#TODO: NOW - need index name to allow for creation from existing schemas
 class SearchFieldSchema(Element):
     """
     A field used for semantic search such as for vector similarity or fulltext search

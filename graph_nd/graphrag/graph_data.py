@@ -16,6 +16,7 @@ def chunks(xs, n=10_000):
     return [xs[i:i + n] for i in range(0, len(xs), n)]
 
 #TODO: Currently uses UNIQUE instead of Key for Community.  Consider revizing later.
+#TODO: NOW - restructure to not have an opinion on constraint name. must have two queries - firs tto check if a range index exists and if not create contraint
 def create_constraint_if_not_exists(node_schema:NodeSchema, db_client):
     """
     Create a unique constraint for the node label and property id if it doesn't exist in the database.
@@ -129,6 +130,7 @@ class NodeData(BaseModel):
     node_schema: NodeSchema = Field(description="schema for the nodes")
     records: List[Dict[str, Any]] = Field(default_factory=list, description="records of node properties mapping property names to values.")
 
+    #TODO: NOW - need two queries for un-opinionated names here
     def create_fulltext_index_if_not_exists(self, db_client, prop_name):
         """
         Create fulltext index for the node label and property if it desn't exist in the database.
@@ -150,6 +152,7 @@ class NodeData(BaseModel):
             if field.type == 'FULLTEXT':
                 self.create_fulltext_index_if_not_exists(db_client, field.calculatedFrom)
 
+    #TODO: NOW - need two queries for un-opinionated names here
     def create_vector_index_if_not_exists(self, db_client, prop_name, dim):
         """
         Create vector index for the node label and property if it doesn't exist in the database.

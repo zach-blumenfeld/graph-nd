@@ -700,7 +700,7 @@ class GraphRAG:
                     index_name = record["name"]
                     session.run(f"DROP INDEX {index_name} IF EXISTS")
 
-
+    # TODO: NOW - need to include index name defined in graph schema for these.
     def get_search_configs_prompt(self) -> str:
         search_args_prompt = ''
         for node in self.schema.schema.nodes:
