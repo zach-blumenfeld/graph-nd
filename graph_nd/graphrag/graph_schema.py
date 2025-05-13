@@ -1,4 +1,5 @@
 import json
+from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator, model_validator, ValidationInfo
 from typing import Optional, Dict, Any, Union, List, Tuple, Self
@@ -85,6 +86,8 @@ class SearchFieldSchema(Element):
     name: str = Field(description="name of the field")
     type: str = Field(description="type of field: TEXT_EMBEDDING, FULLTEXT")
     calculatedFrom: str = Field(description="name of the source property for this field")
+    indexName: str = Field(default_factory=lambda data: f"{data['type'].lower()}_{data['name'].lower()}_{uuid4().hex[:8]}",
+        description="name of the index to use for this field. If not provided, a new index will be created. A good default format is <type>_<node_label>_<name>' in lower case so there aren't duplicate names.")
 
     @field_validator("type")
     def validate_type(cls, v):
@@ -111,6 +114,12 @@ class NodeSchema(Element):
         if not {sf.calculatedFrom for sf in v}.issubset({p.name for p in all_props}):
             raise ValueError("`searchFields` must only contain `calculatedFrom` field values from property names in the `properties`  or `id` fields.")
         return v
+
+    def get_node_search_field(self, calculated_from_prop:str, search_type:str) -> SearchFieldSchema:
+        for search_field in self.searchFields:
+            if search_field.calculatedFrom == calculated_from_prop and search_field.type == search_type:
+                return search_field
+        raise ValueError(f"No search field found for property {calculated_from_prop} in node {self.label} with type {search_type}.")
     
 
 class QueryPattern(Element):
@@ -299,12 +308,9 @@ class GraphSchema(Element):
         node = self.get_node_schema_by_label(label)
         return [node.id.name] + [p.name for p  in node.properties]
 
-    def get_node_search_field_name(self, label:str, prop:str):
+    def get_node_search_field(self, label:str, calculated_from_prop:str, search_type:str) -> SearchFieldSchema:
         node = self.get_node_schema_by_label(label)
-        for search_field in node.searchFields:
-            if search_field.calculatedFrom == prop:
-                return search_field.name
-        raise ValueError(f"No search field found for property {prop} in node {label}")
+        return node.get_node_search_field(calculated_from_prop, search_type)
 
     def get_all_text_embedding_names(self) -> List[str]:
         res = []

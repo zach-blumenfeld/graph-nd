@@ -50,13 +50,25 @@ class TestGraphDataMergeWithSearchFields(unittest.TestCase):
         Clean up the database by deleting all nodes and relationships after tests, then close connections.
         """
         with cls.db_client.session() as session:
-            # Run the cleanup Cypher query to delete everything
-            session.run("MATCH (n) DETACH DELETE n")
-            # Drop the indexes
-            session.run("DROP INDEX vector_person_bio_text_embedding IF EXISTS")
-            session.run("DROP INDEX fulltext_movie_title IF EXISTS")
+            # Clean database
+            with cls.db_client.session() as session:
+                # Delete all nodes and relationships
+                session.run("MATCH (n) DETACH DELETE n")
 
-        cls.db_client.close()
+                # Retrieve and drop specific indexes
+                result = session.run("""
+                     SHOW INDEXES YIELD name, type
+                     WHERE type IN ["FULLTEXT", "VECTOR"]
+                     RETURN name
+                 """)
+
+                for record in result:
+                    index_name = record["name"]
+                    session.run(f"DROP INDEX {index_name} IF EXISTS")
+
+                # drop constraints
+                session.run("CALL apoc.schema.assert({},{},true) YIELD label, key RETURN *")
+            cls.db_client.close()
 
     def test_graph_data_with_text_fields(self):
         """
@@ -198,12 +210,19 @@ class TestGraphDataMergeWithSearchFields(unittest.TestCase):
             )
             return result.single()["match_count"]
 
+        node_schema = None
+        for node_data in graph_data.nodeDatas:
+            if node_data.node_schema.label == "Person":
+                node_schema: NodeSchema = node_data.node_schema
+        if not node_schema:
+            raise ValueError("No Person node schema found in the graph data.")
+
         with self.db_client.session() as session:
             # Vector index validation using a search prompt
             search_prompt = "computer scientist"
             vector_index_query_count = session.execute_read(
                 verify_vector_index_query,
-                index_name="vector_person_bio_text_embedding",  # Name of the vector index
+                index_name=node_schema.get_node_search_field("bio", "TEXT_EMBEDDING").indexName,  # Name of the vector index
                 search_prompt=search_prompt,
                 top_k=5,  # Retrieve the top 5 matches
             )
@@ -215,16 +234,23 @@ class TestGraphDataMergeWithSearchFields(unittest.TestCase):
             )
 
         # Check if the fulltext index was created and is queryable
-        def verify_fulltext_search(tx, search_query):
+        def verify_fulltext_search(tx, search_query, index_name):
             result = tx.run(
-                f"CALL db.index.fulltext.queryNodes('fulltext_movie_title', '{search_query}') YIELD node "
+                f"CALL db.index.fulltext.queryNodes('{index_name}', '{search_query}') YIELD node "
                 "RETURN count(node) AS count"
             )
             return result.single()["count"]
 
         with self.db_client.session() as session:
-            matched_movie_count = session.execute_read(verify_fulltext_search, "The Matrix")
-            unmatched_movie_count = session.execute_read(verify_fulltext_search, "Unknown Title")
+            node_schema = None
+            for node_data in graph_data.nodeDatas:
+                if node_data.node_schema.label == "Movie":
+                    node_schema: NodeSchema = node_data.node_schema
+            if not node_schema:
+                raise ValueError("No Movie node schema found in the graph data.")
+            index_name = node_schema.get_node_search_field("title", "FULLTEXT").indexName
+            matched_movie_count = session.execute_read(verify_fulltext_search, "The Matrix", index_name)
+            unmatched_movie_count = session.execute_read(verify_fulltext_search, "Unknown Title", index_name)
 
         self.assertEqual(matched_movie_count, 1, "Fulltext search failed to match a valid Movie title.")
         self.assertEqual(unmatched_movie_count, 0, "Fulltext search incorrectly matched an invalid query.")

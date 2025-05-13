@@ -724,7 +724,7 @@ class GraphRAG:
                               search_prop:str,
                               top_k=10) -> str:
 
-        index_name = f'fulltext_{node_label.lower()}_{search_prop}'
+        index_name = self.schema.schema.get_node_search_field(node_label, search_prop, "FULLTEXT").indexName
         return_props = self.schema.schema.get_node_properties(node_label)
         return_statement = ', '.join([f'node.`{p}` AS `{p}`' for p in return_props])
         query = f'''
@@ -746,7 +746,7 @@ class GraphRAG:
                               search_prop:str,
                               top_k=10) -> str:
 
-        index_name = f'vector_{node_label.lower()}_{self.schema.schema.get_node_search_field_name(node_label, search_prop)}'
+        index_name = self.schema.schema.get_node_search_field(node_label, search_prop, "TEXT_EMBEDDING").indexName
         return_props = self.schema.schema.get_node_properties(node_label)
         return_statement = ', '.join([f'node.`{p}` AS `{p}`' for p in return_props])
         query_vector = self.data.embedding_model.embed_query(search_query)
