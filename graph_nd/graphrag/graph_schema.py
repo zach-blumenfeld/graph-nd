@@ -86,8 +86,8 @@ class SearchFieldSchema(Element):
     name: str = Field(description="name of the field")
     type: str = Field(description="type of field: TEXT_EMBEDDING, FULLTEXT")
     calculatedFrom: str = Field(description="name of the source property for this field")
-    indexName: str = Field(default_factory=lambda data: f"{data['type'].lower()}_{data['name'].lower()}_{uuid4().hex[:8]}",
-        description="name of the index to use for this field. If not provided, a new index will be created. A good default format is <type>_<node_label>_<name>' in lower case so there aren't duplicate names.")
+    indexName: str = Field(default_factory=lambda data: f"{data['type'].lower()}_{data['calculatedFrom'].lower()}_{uuid4().hex[:8]}",
+        description="name of the index to use for this field. If not provided, a new index will be created. A good default format is <type>_<node_label>_<calculatedFrom>' in lower case so there aren't duplicate names.")
 
     @field_validator("type")
     def validate_type(cls, v):
