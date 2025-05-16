@@ -18,6 +18,7 @@ from tqdm.asyncio import tqdm as tqdm_async
 from graph_nd.graphrag.graph_data import NodeData, RelationshipData, GraphData
 from graph_nd.graphrag.graph_schema import GraphSchema, NodeSchema, SubSchema
 from graph_nd.graphrag.graph_records import SubGraph, SubGraphNodes
+from graph_nd.graphrag.schema_from_db_utils import create_graph_schema_from_existing_db
 from graph_nd.graphrag.source_metadata import SourceType, TransformType, LoadType, prepare_source_metadata
 from graph_nd.graphrag.table_mapping import TableTypeEnum, TableType, NodeTableMapping, RelTableMapping
 from graph_nd.graphrag.prompt_templates import SCHEMA_FROM_DESC_TEMPLATE, SCHEMA_FROM_SAMPLE_TEMPLATE, \
@@ -238,6 +239,21 @@ class GraphRAG:
             except Exception as e:
                 print(f"[Schema] Error loading schema from {file_path}: {e}")
                 raise
+
+        def from_existing_graph(self,
+                                exclude_prefixes=("_", " "),
+                                exclude_exact_matches=None,
+                                text_embedding_fields=None,
+                                parallel_rel_ids:Optional[Dict[str,str]]=None,
+                                description=None):
+            self.schema = create_graph_schema_from_existing_db(self.db_client,
+                                                               exclude_prefixes,
+                                                               exclude_exact_matches,
+                                                               text_embedding_fields,
+                                                               parallel_rel_ids,
+                                                               description)
+            print(f"[Schema] Schema generated from existing graph")
+
 
         def prompt_str(self):
             return self.schema.prompt_str()
