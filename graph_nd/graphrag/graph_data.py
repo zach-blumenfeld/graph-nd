@@ -241,7 +241,7 @@ class NodeData(BaseModel):
                     '''
                     for recs in chunks(emb_df.to_dict('records'), load_chunk_size):
                         db_client.execute_query(query, routing_=RoutingControl.WRITE, recs=recs)
-                    #create index inf not exists
+                    #create index if not exists
                     self.create_vector_index_if_not_exists(db_client, embed_map['prop'], dim)
 
 

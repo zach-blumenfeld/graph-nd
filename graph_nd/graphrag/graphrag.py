@@ -243,13 +243,13 @@ class GraphRAG:
         def from_existing_graph(self,
                                 exclude_prefixes=("_", " "),
                                 exclude_exact_matches=None,
-                                text_embedding_fields=None,
+                                text_embed_index_map: Optional[Dict[str, str]] = None,
                                 parallel_rel_ids:Optional[Dict[str,str]]=None,
                                 description=None):
             self.schema = create_graph_schema_from_existing_db(self.db_client,
                                                                exclude_prefixes,
                                                                exclude_exact_matches,
-                                                               text_embedding_fields,
+                                                               text_embed_index_map,
                                                                parallel_rel_ids,
                                                                description)
             print(f"[Schema] Schema generated from existing graph")

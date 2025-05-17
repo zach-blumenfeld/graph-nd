@@ -1,9 +1,12 @@
 from typing import Dict, Optional, Tuple, List
 import warnings
-from graph_nd.graphrag.graph_schema import GraphSchema, NodeSchema, RelationshipSchema, PropertySchema, \
-    NEO4J_PROPERTY_TYPES, QueryPattern  # assume imports for schema classes
 
-# Helper functions
+import pandas as pd
+
+from graph_nd.graphrag.graph_schema import GraphSchema, NodeSchema, RelationshipSchema, PropertySchema, \
+    NEO4J_PROPERTY_TYPES, QueryPattern, SearchFieldSchema
+
+
 def _is_excluded(name, exclude_prefixes, exclude_exact_matches):
     """Check if a name (label, property, or relationship type) should be excluded."""
     if any(name.startswith(prefix) for prefix in exclude_prefixes):
@@ -47,6 +50,7 @@ def _get_validated_node_properties(label, properties, exclude_prefixes, exclude_
         else:
             validated_properties[property['name']] = property['type']
     return validated_properties
+
 
 def _get_validated_rel_properties(rel_type, properties, exclude_prefixes, exclude_exact_matches, vector_properties) -> Dict[str, str]:
     validated_properties: Dict[str, str] = dict()
@@ -93,7 +97,6 @@ def _break_tie_on_node_id_prop_candidates(db_client, label: str, id_candidates: 
     return sorted_candidates[0]
 
 
-
 def _find_node_id_without_constraint(db_client, label: str, valid_property_candidates: List[str]) -> Tuple[str, str]:
     properties = db_client.execute_query(f"""
     SHOW INDEXES YIELD *
@@ -137,11 +140,87 @@ def _find_node_id(db_client, label: str, label_constraints:List[Dict], valid_pro
         warnings.warn(f"No valid non-composite node constraints found on node `{label}`. Falling back to range index lookup.")
         return _find_node_id_without_constraint(db_client, label, valid_property_candidates)
 
+
+def _get_fulltext_search_fields(label:str, valid_properties:List[str], index_df) -> List[SearchFieldSchema]:
+    # filter df to fulltext with label
+    filtered_df = index_df[(index_df['type'] == 'FULLTEXT') & (index_df['label'] == label)].copy()
+    #if filtered df has no rows return empty list
+    if filtered_df.shape[0] == 0:
+        return []
+    #else more expensive checking
+    result: List[SearchFieldSchema] = []
+    for prop in valid_properties:
+        prop_df = filtered_df[filtered_df['property'] == prop]
+        if prop_df.shape[0] > 0:
+            for ind, row in prop_df.iterrows():
+                if len(row['labels']) > 1:
+                    warnings.warn(f"WARNING: The fulltext index {row['indexName']} on labels {row['labels']} was encountered and will be ignored as fulltext indexes on multi-labels and multi-properties aren't supported yet.", UserWarning)
+                elif len(row['properties']) > 1:
+                    warnings.warn(f"WARNING: The fulltext index {row['indexName']} on properties {row['properties']} was encountered and will be ignored as fulltext indexes on multi-labels and multi-properties aren't supported yet.", UserWarning)
+                else:
+                    result.append(
+                        SearchFieldSchema(
+                            description='',
+                            name=prop,
+                            type="FULLTEXT",
+                            calculatedFrom=prop,
+                            indexName=row['indexName']
+                        )
+                    )
+    return result
+
+def _validate_vector_index_map(index_df: pd.DataFrame, index_map: Dict[str, str]):
+    indices = index_df.loc[index_df['type'] == 'VECTOR', 'indexName'].unique()
+    for ind, calc_prop in index_map.items():
+        if ind not in indices:
+            raise ValueError(f"The Vector index {ind} does not exist for any node properties in the database.")
+
+def _get_vector_search_fields(label:str, valid_properties:List[str], index_df:pd.DataFrame, index_map: Dict[str,str]) -> List[SearchFieldSchema]:
+    # filter df to fulltext with label
+    filtered_df = index_df[(index_df['type'] == 'VECTOR') &
+                           (index_df['label'] == label) &
+                           (index_df['indexName'].isin(index_map.keys()))].copy()
+    #if filtered df has no rows return empty list
+    if filtered_df.shape[0] == 0:
+        return []
+    #else more expensive checking
+    result: List[SearchFieldSchema] = []
+    for ind, calc_prop in index_map.items():
+        ind_df = filtered_df[filtered_df['indexName'] == ind]
+        if calc_prop in valid_properties:
+            for i, row in ind_df.iterrows():
+                if len(row['labels']) > 1:
+                    warnings.warn(f"WARNING: The vector index {row['indexName']} on labels {row['labels']} was encountered and will be ignored as vector indexes on multi-labels and multi-properties aren't supported yet.", UserWarning)
+                elif len(row['properties']) > 1:
+                    warnings.warn(f"WARNING: The vector index {row['indexName']} on properties {row['properties']} was encountered and will be ignored as vector indexes on multi-labels and multi-properties aren't supported yet.", UserWarning)
+                else:
+                    result.append(
+                        SearchFieldSchema(
+                            description='',
+                            name=row['property'],
+                            type="TEXT_EMBEDDING",
+                            calculatedFrom=calc_prop,
+                            indexName=ind
+                        )
+                    )
+    return result
+
+def _check_text_embedding_index_completeness(index_map: Dict[str,str], search_fields:List[SearchFieldSchema]):
+    for ind, calc_prop in index_map.items():
+        found = False
+        for sf in search_fields:
+            if sf.calculatedFrom == calc_prop and sf.indexName == ind and sf.type == "TEXT_EMBEDDING":
+                found = True
+                break
+        if not found:
+            raise ValueError(f"The text embedding field for `{{{ind}:{calc_prop}}}` was never found. This is likely due to the `{calc_prop}` not being of valid node property or associated with the same node label as the vector index named `{ind}`.")
+
+
 def create_node_schemas_from_existing_db(
         db_client,
         exclude_prefixes=("_", " "),
         exclude_exact_matches=None,
-        text_embedding_fields=None,
+        text_embed_index_map: Optional[Dict[str,str]]=None,
 ) -> List[NodeSchema]:
 
     # Initialize exclusion settings
@@ -160,7 +239,17 @@ def create_node_schemas_from_existing_db(
                         WHERE type IN ["NODE_KEY", "UNIQUENESS"] AND entityType="NODE"
                         RETURN labelsOrTypes[0] AS label, properties
                         """, result_transformer_=lambda r: r.data())
+    search_index_df = db_client.execute_query("""
+                        SHOW INDEXES YIELD *
+                        WHERE entityType="NODE" AND type IN ["FULLTEXT", "VECTOR"]
+                        RETURN name AS indexName, type, labelsOrTypes AS labels, properties""",
+                                                      result_transformer_ = lambda r: r.to_df())
+    search_index_df = (search_index_df
+     .join(search_index_df['labels'].explode().rename('label'))
+     .join(search_index_df['properties'].explode().rename('property')))
+
     node_list = []
+    all_text_emb_field_schemas = []
     for label in labels:
         # Exclude the node if its label is excluded
         if _is_excluded(label, exclude_prefixes, exclude_exact_matches):
@@ -179,13 +268,35 @@ def create_node_schemas_from_existing_db(
                 node_id, node_id_desc = _find_node_id(db_client, label, label_constraints, list(properties.keys()))
                 property_schemas = []
                 node_id_schema = PropertySchema(description=node_id_desc, name=node_id, type=properties[node_id])
-                # get fulltext embeddings
-                # create property schema
+                # create property schemas
                 for prop_name, prop_type in properties.items():
+                    # TODO: This is a wierd property of graph schemas that should be removed in future refactors
+                    ## to optimize the data structure.
+                    ## Node id properties need not exist in the property schemas
+                    ## Duplicating node id in property schemas results in minor inefficiencies for merging data
+                    ## with little impact on performance, and is otherwise harmless.
                     if prop_name != node_id:
                         property_schemas.append(PropertySchema(name=prop_name, type=prop_type, description=""))
+                # create search field schemas
+                search_field_schemas = _get_fulltext_search_fields(label, list(properties.keys()),
+                                                                   search_index_df)
+                if text_embed_index_map:
+                    _validate_vector_index_map(search_index_df, text_embed_index_map)
+                    text_emb_field_schemas = _get_vector_search_fields(label,
+                                                                       list(properties.keys()),
+                                                                       search_index_df,
+                                                                       text_embed_index_map)
+
+                    search_field_schemas += text_emb_field_schemas
+                    all_text_emb_field_schemas += text_emb_field_schemas
                 # append node schema
-                node_list.append(NodeSchema(id=node_id_schema, label=label, properties=property_schemas, searchFields=[], description=""))
+                node_list.append(NodeSchema(id=node_id_schema,
+                                            label=label,
+                                            properties=property_schemas,
+                                            searchFields=search_field_schemas,
+                                            description=""))
+    if text_embed_index_map:
+        _check_text_embedding_index_completeness(text_embed_index_map, all_text_emb_field_schemas)
     return node_list
 
 def create_relationship_schemas_from_existing_db(db_client,
@@ -263,9 +374,9 @@ def create_relationship_schemas_from_existing_db(db_client,
 def create_graph_schema_from_existing_db(db_client,
                                          exclude_prefixes=("_", " "),
                                          exclude_exact_matches=None,
-                                         text_embedding_fields=None,
+                                         text_embed_index_map: Optional[Dict[str, str]] = None,
                                          parallel_rel_ids:Optional[Dict[str,str]]=None,
                                          description=None) -> GraphSchema:
-    nodes = create_node_schemas_from_existing_db(db_client, exclude_prefixes, exclude_exact_matches, text_embedding_fields)
+    nodes = create_node_schemas_from_existing_db(db_client, exclude_prefixes, exclude_exact_matches, text_embed_index_map)
     relationships = create_relationship_schemas_from_existing_db(db_client, [n.label for n in nodes], exclude_prefixes, exclude_exact_matches, parallel_rel_ids)
     return GraphSchema(nodes=nodes, relationships=relationships, description= description if description else "graph schema found in existing database")
