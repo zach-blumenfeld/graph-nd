@@ -7,7 +7,7 @@ import yaml  # Import PyYAML for YAML serialization
 
 from graph_nd.graphrag.utils import validate_list_type
 
-NEO4J_PROPERTY_TYPES = {"STRING", "INTEGER", "FLOAT", "BOOLEAN", "DATE", "DATETIME"}
+NEO4J_PROPERTY_TYPES = {"STRING", "INTEGER", "FLOAT", "BOOLEAN", "DATE", "DATE_TIME"}
 
 class SubSchema:
     def __init__(self, nodes: Union[str, List[str]] = None,
