@@ -29,7 +29,7 @@ def _get_properties_by_rel_type(db_client):
     CALL apoc.meta.data()
     YIELD label, other, elementType, type, property
     WHERE NOT type = 'RELATIONSHIP' AND elementType = 'relationship'
-    WITH label AS relType, collect({property:property, type:type}) AS properties
+    WITH label AS relType, collect({name:property, type:type}) AS properties
     RETURN relType, properties
     """, result_transformer_= lambda r: r.data())
     return {r['relType']: r['properties'] for r in res}
@@ -173,7 +173,7 @@ def _validate_vector_index_map(index_df: pd.DataFrame, index_map: Dict[str, str]
     indices = index_df.loc[index_df['type'] == 'VECTOR', 'indexName'].unique()
     for ind, calc_prop in index_map.items():
         if ind not in indices:
-            raise ValueError(f"The Vector index {ind} does not exist for any node properties in the database.")
+            raise ValueError(f"The Vector index `{ind}` does not exist for any node properties in the database.")
 
 def _get_vector_search_fields(label:str, valid_properties:List[str], index_df:pd.DataFrame, index_map: Dict[str,str]) -> List[SearchFieldSchema]:
     # filter df to fulltext with label
