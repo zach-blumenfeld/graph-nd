@@ -7,7 +7,7 @@ from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 
 def main():
     # Load environment variables
-    load_dotenv('.env', override=True)
+    load_dotenv('nb.env', override=True)
 
     # Retrieve credentials from env variables
     uri = os.getenv('NEO4J_URI')
