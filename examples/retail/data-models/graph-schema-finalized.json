@@ -68,7 +68,8 @@
                     "description": "",
                     "name": "reason_textembedding",
                     "type": "TEXT_EMBEDDING",
-                    "calculatedFrom": "reason"
+                    "calculatedFrom": "reason",
+                    "indexName": "creditnote_reason_textembedding"
                 }
             ]
         },
@@ -107,7 +108,8 @@
                     "description": "Embeddings to enable semantic search for products",
                     "name": "text_textembedding",
                     "type": "TEXT_EMBEDDING",
-                    "calculatedFrom": "text"
+                    "calculatedFrom": "text",
+                    "indexName": "product_text_textembedding"
                 }
             ]
         },
@@ -123,7 +125,7 @@
                 {
                     "description": "",
                     "name": "date",
-                    "type": "DATETIME"
+                    "type": "DATE_TIME"
                 }
             ],
             "searchFields": []

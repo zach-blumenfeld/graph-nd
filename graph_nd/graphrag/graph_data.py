@@ -1,13 +1,15 @@
 import uuid
 from datetime import datetime
 from typing import Any, Dict, Tuple, Optional, List, Union
+from warnings import warn
+
 import pandas as pd
 from langchain_openai import OpenAIEmbeddings
 from neo4j import RoutingControl
 from pydantic import BaseModel, Field
 from tqdm import tqdm
 
-from graph_nd.graphrag.graph_schema import NodeSchema, RelationshipSchema
+from graph_nd.graphrag.graph_schema import NodeSchema, RelationshipSchema, SearchFieldSchema
 from graph_nd.graphrag.source_metadata import SourceType, TransformType, LoadType, prepare_source_metadata
 
 
@@ -16,14 +18,42 @@ def chunks(xs, n=10_000):
     return [xs[i:i + n] for i in range(0, len(xs), n)]
 
 #TODO: Currently uses UNIQUE instead of Key for Community.  Consider revizing later.
-def create_constraint_if_not_exists(node_schema:NodeSchema, db_client):
+def create_constraint_if_not_exists(node_schema:NodeSchema, db_client) -> bool:
     """
     Create a unique constraint for the node label and property id if it doesn't exist in the database.
     """
-    db_client.execute_query(
-        f'CREATE CONSTRAINT unique_{node_schema.label.lower()}_{node_schema.id.name} IF NOT EXISTS FOR (n:{node_schema.label}) REQUIRE n.{node_schema.id.name} IS UNIQUE',
-        routing_=RoutingControl.WRITE
-    )
+
+    # check for constraint
+    constraint_exists = db_client.execute_query(f"""
+                        SHOW CONSTRAINTS YIELD *
+                        WHERE type IN ["NODE_KEY", "UNIQUENESS"] 
+                            AND entityType="NODE" 
+                            AND "{node_schema.id.name}" IN properties
+                        RETURN count(*) > 0 AS res
+                        """, routing_=RoutingControl.WRITE, result_transformer_= lambda r: r.values()[0][0])
+
+    if not constraint_exists:
+        #check for b - tree index
+        index_exists = db_client.execute_query("""
+                        SHOW INDEXES YIELD *
+                        WHERE type IN ["RANGE"] AND entityType="NODE" AND "imdbId" IN properties
+                        RETURN count(*) > 0 AS res
+                        """, routing_=RoutingControl.WRITE, result_transformer_=lambda r: r.values()[0][0])
+        # if b-tree index exists throw warning
+        if index_exists:
+            warn(
+                f"WARNING: A range index exists on `{node_schema.label}` for property `{node_schema.id.name}`, "
+                "but no unique constraint is present. This can result in undesirable behavior like merging to duplicate nodes.",
+                UserWarning
+            )
+
+        else:
+            # create constraint
+            db_client.execute_query(
+                f'CREATE CONSTRAINT unique_{node_schema.label.lower()}_{node_schema.id.name} IF NOT EXISTS FOR (n:{node_schema.label}) REQUIRE n.{node_schema.id.name} IS UNIQUE',
+                routing_=RoutingControl.WRITE
+            )
+    return True
 
 #TODO: Can we remove the `skip` argument?
 def make_set_clause(prop_names: List[str], element_name='n', item_name='rec', skip=None):
@@ -129,17 +159,17 @@ class NodeData(BaseModel):
     node_schema: NodeSchema = Field(description="schema for the nodes")
     records: List[Dict[str, Any]] = Field(default_factory=list, description="records of node properties mapping property names to values.")
 
-    def create_fulltext_index_if_not_exists(self, db_client, prop_name):
+    def create_fulltext_index_if_not_exists(self, db_client, field:SearchFieldSchema):
         """
         Create fulltext index for the node label and property if it desn't exist in the database.
         """
         db_client.execute_query(
-            f'CREATE FULLTEXT INDEX fulltext_{self.node_schema.label.lower()}_{prop_name} IF NOT EXISTS FOR (n:{self.node_schema.label}) ON EACH [n.{prop_name}]',
+            f'CREATE FULLTEXT INDEX `{field.indexName}` IF NOT EXISTS FOR (n:`{self.node_schema.label}`) ON EACH [n.`{field.calculatedFrom}`]',
             routing_=RoutingControl.WRITE
         )
         # wait for index to come online
         db_client.execute_query(
-            f'CALL db.awaitIndex("fulltext_{self.node_schema.label.lower()}_{prop_name}", 300)',
+            f'CALL db.awaitIndex("{field.indexName}", 300)',
             routing_=RoutingControl.WRITE)
 
     def create_fulltext_indexes_if_not_exists(self, db_client):
@@ -148,14 +178,15 @@ class NodeData(BaseModel):
         """
         for field in self.node_schema.searchFields if self.node_schema.searchFields is not None else []:
             if field.type == 'FULLTEXT':
-                self.create_fulltext_index_if_not_exists(db_client, field.calculatedFrom)
+                self.create_fulltext_index_if_not_exists(db_client, field)
 
-    def create_vector_index_if_not_exists(self, db_client, prop_name, dim):
+    def create_vector_index_if_not_exists(self, db_client, prop_name:str, dim:int):
         """
         Create vector index for the node label and property if it doesn't exist in the database.
         """
+        field  = self.node_schema.get_node_search_field(prop_name, "TEXT_EMBEDDING")
         db_client.execute_query(
-            f'''CREATE VECTOR INDEX vector_{self.node_schema.label.lower()}_{prop_name} IF NOT EXISTS FOR (n:{self.node_schema.label}) ON n.{prop_name}
+            f'''CREATE VECTOR INDEX `{field.indexName}` IF NOT EXISTS FOR (n:`{self.node_schema.label}`) ON n.`{field.name}`
             OPTIONS {{ indexConfig: {{
              `vector.dimensions`: {dim},
              `vector.similarity_function`: 'cosine'
@@ -164,16 +195,8 @@ class NodeData(BaseModel):
             routing_=RoutingControl.WRITE)
         # wait for index to come online
         db_client.execute_query(
-            f'CALL db.awaitIndex("vector_{self.node_schema.label.lower()}_{prop_name}", 300)',
+            f'CALL db.awaitIndex("{field.indexName}", 300)',
             routing_=RoutingControl.WRITE)
-
-    def create_text_vector_indexes_if_not_exists(self, db_client, dim=1536):
-        """
-        Create vector indexes for the node label and properties if they don't exist in the database.
-        """
-        for field in self.node_schema.searchFields if self.node_schema.searchFields is not None else []:
-            if field.type == 'TEXT_EMBEDDING':
-                self.create_vector_index_if_not_exists(db_client, field.calculatedFrom, dim)
 
     def make_node_merge_query(self, source_id=None):
         template = f'''UNWIND $recs AS rec\nMERGE(n:{self.node_schema.label} {{{self.node_schema.id.name}: rec.{self.node_schema.id.name}}})'''
@@ -215,8 +238,8 @@ class NodeData(BaseModel):
                     '''
                     for recs in chunks(emb_df.to_dict('records'), load_chunk_size):
                         db_client.execute_query(query, routing_=RoutingControl.WRITE, recs=recs)
-                    #create index inf not exists
-                    self.create_vector_index_if_not_exists(db_client, embed_map['emb'], dim)
+                    #create index if not exists
+                    self.create_vector_index_if_not_exists(db_client, embed_map['prop'], dim)
 
 
     def merge(self, db_client, source_metadata: Union[bool, Dict[str, Any]]=True, embedding_model=None, chunk_size=1000, emb_gen_chunk_size=1000,

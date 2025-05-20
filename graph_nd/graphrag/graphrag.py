@@ -18,6 +18,7 @@ from tqdm.asyncio import tqdm as tqdm_async
 from graph_nd.graphrag.graph_data import NodeData, RelationshipData, GraphData
 from graph_nd.graphrag.graph_schema import GraphSchema, NodeSchema, SubSchema
 from graph_nd.graphrag.graph_records import SubGraph, SubGraphNodes
+from graph_nd.graphrag.schema_from_db_utils import create_graph_schema_from_existing_db
 from graph_nd.graphrag.source_metadata import SourceType, TransformType, LoadType, prepare_source_metadata
 from graph_nd.graphrag.table_mapping import TableTypeEnum, TableType, NodeTableMapping, RelTableMapping
 from graph_nd.graphrag.prompt_templates import SCHEMA_FROM_DESC_TEMPLATE, SCHEMA_FROM_SAMPLE_TEMPLATE, \
@@ -238,6 +239,50 @@ class GraphRAG:
             except Exception as e:
                 print(f"[Schema] Error loading schema from {file_path}: {e}")
                 raise
+
+        def from_existing_graph(self,
+                                exclude_prefixes=("_", " "),
+                                exclude_exact_matches=None,
+                                text_embed_index_map: Optional[Dict[str, str]] = None,
+                                parallel_rel_ids:Optional[Dict[str,str]]=None,
+                                description=None):
+            """
+            Generates a schema from existing graph data.  U
+            se for an existing graph database you are connecting for GraphRAG.
+
+            This function analyzes the existing database to generate node schemas and
+            relationship schemas, combining them into a unified graph schema. Users can
+            specify customization options such as excluding certain prefixes or specific
+            exact matches for attributes, and optionally map text embeddings or parallel
+            relationship IDs. A description for the schema can also be provided.
+
+            Args:
+                exclude_prefixes: A tuple of strings containing prefixes. Node labels, relationship types, or properties
+                    starting with any of these prefixes are excluded, defaults to ("_", " ").
+                exclude_exact_matches: An optional set of exact node labels, relationship types, or property names to
+                    exclude from the schema, defaults to None if not provided.
+                text_embed_index_map: An optional dictionary mapping {text_embedding_index_name: text_property}
+                    where text_property is a node property that is used to calculate the embedding. This is required to use
+                    text embedding search fields for nodes. If not provided, no text embedding search fields will be included in the schema.
+                    Defaults to None.
+                parallel_rel_ids (Optional[Dict[str, str]], optional): A dictionary mapping relationship
+                    types to their parallel relationship ID property names: `{rel_type: property_name}`. This is only required if the
+                    user wishes to ingest more data while maintaining parallel relationships for specific node types
+                    (more than one instance of a relationship type existing between the same start and end nodes). Defaults to None.
+                description: Optional description of the generated graph schema. Exposed to LLM when accessing the graph through GraqphRAG.
+
+            Returns:
+                GraphSchema: The graph schema constructed, comprising node schemas
+                and relationship schemas extracted from the existing database.
+            """
+            self.schema = create_graph_schema_from_existing_db(self.db_client,
+                                                               exclude_prefixes,
+                                                               exclude_exact_matches,
+                                                               text_embed_index_map,
+                                                               parallel_rel_ids,
+                                                               description)
+            print(f"[Schema] Schema generated from existing graph")
+
 
         def prompt_str(self):
             return self.schema.prompt_str()
@@ -700,7 +745,6 @@ class GraphRAG:
                     index_name = record["name"]
                     session.run(f"DROP INDEX {index_name} IF EXISTS")
 
-
     def get_search_configs_prompt(self) -> str:
         search_args_prompt = ''
         for node in self.schema.schema.nodes:
@@ -724,7 +768,7 @@ class GraphRAG:
                               search_prop:str,
                               top_k=10) -> str:
 
-        index_name = f'fulltext_{node_label.lower()}_{search_prop}'
+        index_name = self.schema.schema.get_node_search_field(node_label, search_prop, "FULLTEXT").indexName
         return_props = self.schema.schema.get_node_properties(node_label)
         return_statement = ', '.join([f'node.`{p}` AS `{p}`' for p in return_props])
         query = f'''
@@ -746,7 +790,7 @@ class GraphRAG:
                               search_prop:str,
                               top_k=10) -> str:
 
-        index_name = f'vector_{node_label.lower()}_{self.schema.schema.get_node_search_field_name(node_label, search_prop)}'
+        index_name = self.schema.schema.get_node_search_field(node_label, search_prop, "TEXT_EMBEDDING").indexName
         return_props = self.schema.schema.get_node_properties(node_label)
         return_statement = ', '.join([f'node.`{p}` AS `{p}`' for p in return_props])
         query_vector = self.data.embedding_model.embed_query(search_query)
