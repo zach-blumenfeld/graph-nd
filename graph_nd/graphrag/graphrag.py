@@ -1,22 +1,20 @@
 import asyncio
 import json
 import os
-import uuid
 from datetime import datetime
-from pprint import pprint
-from typing import Dict, List, Tuple, Any, Optional, Union, Sequence, Callable
+from typing import Dict, List, Any, Optional, Union, Sequence, Callable
 
+from langchain_core.embeddings import Embeddings
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.tools import BaseTool
-from langgraph.graph.graph import CompiledGraph
-from langgraph.prebuilt import create_react_agent, ToolNode
+from langgraph.prebuilt import create_react_agent
 from neo4j import RoutingControl
-from tqdm import tqdm
 from tqdm.asyncio import tqdm as tqdm_async
 
 
 from graph_nd.graphrag.graph_data import NodeData, RelationshipData, GraphData
-from graph_nd.graphrag.graph_schema import GraphSchema, NodeSchema, SubSchema
+from graph_nd.graphrag.graph_schema import GraphSchema, SubSchema
 from graph_nd.graphrag.graph_records import SubGraph, SubGraphNodes
 from graph_nd.graphrag.schema_from_db_utils import create_graph_schema_from_existing_db
 from graph_nd.graphrag.source_metadata import SourceType, TransformType, LoadType, prepare_source_metadata
@@ -27,18 +25,31 @@ from graph_nd.graphrag.prompt_templates import SCHEMA_FROM_DESC_TEMPLATE, SCHEMA
     QUERY_TEMPLATE, AGG_QUERY_TEMPLATE, INTERNAL_AGENT_SYSTEM_TEMPLATE, TEXT_NODE_EXTRACTION_TEMPLATE, \
     SCHEMA_FROM_USE_CASE_MAPPING_TEMPLATE, AGENT_SYSTEM_TEMPLATE
 from graph_nd.graphrag.utils import read_csv_preview, read_csv, load_pdf, remove_key_recursive, run_async_function
-import nest_asyncio
 
 class GraphRAG:
-    def __init__(self, db_client=None, llm=None, embedding_model=None):
+    """
+    GraphRAG serves as the core end-to-end implementation to
+    - create and manage knowledge graph data - mapping from structured & unstructured sources
+    - create and mange graph schemas which are core to data validation and LLM/agent prompting
+    - generation of tools & agents for GraphRAG workflows
+
+    Attributes:
+        db_client: A database client for managing underlying
+            graph data (Assumed to be a Neo4j driver).
+        llm: A Langchain LLM instance for various data, schema, and agent tasks.
+        schema: A Schema instance to manage schema-related operations.
+        data: A Data instance for managing knowledge graph data.
+        agent_executor: A LangGraph GraphRAG agent.
+    """
+    def __init__(self, db_client=None, llm:Optional[BaseChatModel]=None, embedding_model:Optional[Embeddings]=None):
         """
         Initializes the GraphRAG instance.
 
         Args:
             db_client: The database client for managing the knowledge graph
-                       (Assumed to be a Neo4j driver in this code example.)
-            llm: The language model for handling inference, queries and response completions.
-            embedding_model: text embedding model to use for data
+                       (Assumed to be a Neo4j driver)
+            llm: LangChain LLM for handling inference, queries and response completions.
+            embedding_model: LangChain text embedding model to use for data and semantic search.
         """
         self.agent_executor = None
         self.db_client = db_client
@@ -48,28 +59,28 @@ class GraphRAG:
         self.schema = self.Schema(self.db_client, llm)
         self.data = self.Data(self, self.db_client, llm, embedding_model)
 
-    def set_llm(self, llm):
+    def set_llm(self, llm:Optional[BaseChatModel]):
         """
-        Sets or updates the language model (LLM) for GraphRAG and Schema.
+        Sets or updates the language model (LLM) for GraphRAG, Schema, and Data.
 
         Args:
             llm: The language model (LLM) instance to use.
         """
         self.llm = llm
         self.schema.set_llm(llm)
-        self.data.set_llms(llm)
+        self.data.set_llm(llm)
 
     class Schema:
         """
-        Encapsulates the knowledge graph schema.
+        Encapsulates the knowledge graph schema which is used to validate data and prompt LLMs and agents for graph interactions.
         """
 
-        def __init__(self, db_client, llm):
-            self.schema = None
+        def __init__(self, db_client, llm:Optional[BaseChatModel]):
+            self.schema:Optional[GraphSchema] = None
             self.db_client = db_client
             self.llm = llm.with_structured_output(GraphSchema, method="function_calling") if llm else None
 
-        def set_llm(self, llm):
+        def set_llm(self, llm:Optional[BaseChatModel]):
             """
             Sets or updates the LLM in the Schema and ensures proper configuration.
 
@@ -285,20 +296,32 @@ class GraphRAG:
 
 
         def prompt_str(self):
+            """
+            Returns the prompt string from the associated graph schema.
+            This is created from a custom model_dump where Relationships serialize query patterns in the format:
+            (:startNodeLabel)-[:TYPE]->(:endNodeLabel). This makes it easier for LLMs and humans to interpret.
+
+            Returns:
+                str: The prompt string extracted from the schema's definition.
+            """
             return self.schema.prompt_str()
 
     class Data:
         """
         Data management for the knowledge graph.
+        This class is responsible for all write and admin operations on the knowledge graph.
+        All source data is mapped through this class's methods.
         """
 
-        def __init__(self, graphrag, db_client, llm, embedding_model=None):
+        def __init__(self, graphrag, db_client, llm:Optional[BaseChatModel], embedding_model:Optional[Embeddings]=None):
             """
             Initializes the Data class.
 
             Args:
                 graphrag: A reference to the outer `GraphRAG` instance.
                 db_client: The database client for managing the knowledge graph.
+                llm: The LangChain LLM for data operations.
+                embedding_model: The LanChain embedding model for  data operations.
             """
             self.llm_node_text_extractor = None
             self.embedding_model = None
@@ -308,13 +331,22 @@ class GraphRAG:
             self.llm_text_extractor = None
             self.graphrag = graphrag  # Reference to the outer GraphRAG instance
             self.db_client = db_client
-            self.set_llms(llm)
+            self.set_llm(llm)
             self.set_embedding_model(embedding_model)
 
-        def set_embedding_model(self, embedding_model):
+        def set_embedding_model(self, embedding_model:Optional[Embeddings]):
             self.embedding_model = embedding_model if embedding_model else None
 
-        def set_llms(self, llm):
+        def set_llm(self, llm:Optional[BaseChatModel]):
+            """
+            Sets the language model (LLM) for all data operations.
+
+            Parameters
+            ----------
+            llm : Language model, optional
+                The language model instance to be set. The language model should support
+                a `with_structured_output` method for structured output handling.
+            """
             self.llm_table_type = llm.with_structured_output(TableType, method="function_calling") if llm else None
             self.llm_node_table_mapping = llm.with_structured_output(NodeTableMapping,
                                                                      method="function_calling") if llm else None
@@ -325,7 +357,7 @@ class GraphRAG:
             self.llm_node_text_extractor = llm.with_structured_output(SubGraphNodes,
                                                                  method="function_calling") if llm else None
 
-        def _validate_llms(self):
+        def _validate_llm(self):
             if any(attr is None for attr in [self.llm_table_type,
                                              self.llm_node_table_mapping,
                                              self.llm_rels_table_mapping,
@@ -335,22 +367,21 @@ class GraphRAG:
 
         def merge_nodes(self, label:str, records: List[Dict], source_metadata: Union[bool, Dict[str, Any]] = True):
             """
-            Merges node data into the graph  using the provided label and record data.
+            Merges node data into the graph using the provided label and record data.
 
             Parameters:
                 label (str): The label of the node type to merge (e.g., "Person", "Movie").
-                             The label should match a defined node in the graph schema.
+                    The label should match a defined node in the graph schema.
                 records List[Dict]: A list of dictionaries representing the data for each node to be merged.
-                            Each record MUST include the `id` field as defined in the node schema, along with
-                            any other optional properties expected by the schema.
+                    Each record MUST include the `id` field as defined in the node schema, along with
+                    any other optional properties expected by the schema.
                 source_metadata : Union[bool, Dict[str, Any]], optional
-                            Metadata for the source being merged.
-                            - If set to `True`, default source metadata is prepared and added to a __Source__ node in the graph.
-                            A __source_id property is added and/or appended to each node which maps to the id property of __Source__ node
-                            - If `False`, no source metadata is added to the graph.
-                            - If a custom dictionary is provided, source metadata is added as in the case of `True` and the dictionary properties override the default ones.
-                            Default is True.
-
+                    Metadata for the source being merged.
+                    - If set to `True`, default source metadata is prepared and added to a __Source__ node in the graph.
+                    A __source_id property is added and/or appended to each node which maps to the id property of __Source__ node
+                    - If `False`, no source metadata is added to the graph.
+                    - If a custom dictionary is provided, source metadata is added as in the case of `True` and the dictionary properties override the default ones.
+                    Default is True.
 
             Example:
                 label = "Person"
@@ -358,11 +389,13 @@ class GraphRAG:
                     {"person_id": 1, "name": "Alice", "age": 30},
                     {"person_id": 2, "name": "Bob", "age": 25}
                 ]
-                Expected Behavior:
-                    - Creates or updates nodes labeled "Person" using the records
+
+            Expected Behavior:
+                Creates or updates nodes labeled "Person" using the records
 
             Raises:
                 ValueError: If the label is not found in the graph schema
+
             """
 
 
@@ -404,12 +437,14 @@ class GraphRAG:
                     {"start_node_id": 1, "end_node_id": "M101", "role": "Protagonist"},
                     {"start_node_id": 2, "end_node_id": "M102", "role": "Hacker"}
                 ]
-                Expected Behavior:
-                    - Creates or updates "ACTED_IN" relationships between the "Person" and "Movie" nodes.
+
+            Expected Behavior:
+                - Creates or updates "ACTED_IN" relationships between the "Person" and "Movie" nodes.
 
             Raises:
                 ValueError: If the relationship type, start node label, or end node label is not found in the schema,
-                            or if required fields in `records` are missing.
+                    or if required fields in `records` are missing.
+
             """
 
             start_node_schema = self.graphrag.schema.schema.get_node_schema_by_label(start_node_label)
@@ -422,7 +457,19 @@ class GraphRAG:
             relationship_data.merge(self.db_client, source_metadata)
 
         def get_table_mapping_type(self, table_name:str, table_preview: str) -> TableTypeEnum:
-            self._validate_llms()
+            """
+            Determines the type of the provided table based on its name, a preview of its data,
+            and the schema of the graph. This function uses a language model prompt
+            to infer the table type in a structured manner.
+
+            Args:
+                table_name (str): Name of the table to infer the type for.
+                table_preview (str): A preview or sample content of the table.
+
+            Returns:
+                TableTypeEnum: The inferred type of the table.
+            """
+            self._validate_llm()
             #print(f"[Data] Inferring Table Type of {table_name}")
             prompt = TABLE_TYPE_TEMPLATE.invoke({'tableName': table_name,
                                                  'tablePreview': table_preview,
@@ -434,7 +481,27 @@ class GraphRAG:
             return table_type.type
 
         def get_table_node_mapping(self, table_name:str, table_preview: str) -> NodeTableMapping:
-            self._validate_llms()
+            """
+            Generate a table-to-node mapping for the specified table.
+
+            This function generates a mapping between a table and node by using
+            an LLM with structured output. It validates the LLM instance,
+            invokes a prompt with the given table details, and utilizes the structured
+            LLM for schema inference to produce the mapping.
+
+            Parameters:
+                table_name: str
+                    The name of the table for which the node mapping is to be generated.
+                table_preview: str
+                    A string representation or preview of the table data.
+
+            Returns:
+                NodeTableMapping
+                    The mapping object that represents the relationship between the table
+                    and its corresponding nodes.
+
+            """
+            self._validate_llm()
             #print(f"[Data] Creating node mapping for {table_name}")
             prompt = NODE_MAPPING_TEMPLATE.invoke({'tableName': table_name,
                                                  'tablePreview': table_preview,
@@ -445,7 +512,28 @@ class GraphRAG:
             return node_mapping
 
         def get_table_relationships_mapping(self, table_name:str, table_preview: str) -> RelTableMapping:
-            self._validate_llms()
+            """
+            Generates a table-to-relationships mapping using an LLM with structured outputs.
+
+            This method accepts a table name and its preview to generate a relationship
+            mapping by leveraging a large language model (LLM). It invokes a
+            specific prompt template for generating the relationships mapping based on the
+            table's name, preview, and schema information. The LLM output is then processed
+            to create a `RelTableMapping` object which captures the relationships and start and end nodes in the
+            provided table.
+
+            Args:
+                table_name: str
+                    The name of the table for which the relationships mapping is to be created.
+                table_preview: str
+                    A preview string representation of the table, providing sample data or
+                    structure information.
+
+            Returns:
+                RelTableMapping
+                    A table-to-relationships mapping.
+            """
+            self._validate_llm()
             #print(f"[Data] Creating relationships mapping for {table_name}")
             prompt = RELATIONSHIPS_MAPPING_TEMPLATE.invoke({'tableName': table_name,
                                                  'tablePreview': table_preview,
@@ -456,22 +544,49 @@ class GraphRAG:
             return rels_mapping
 
         def merge_node_table(self, table_records:List[Dict], node_mapping:NodeTableMapping, source_metadata: Union[bool, Dict[str, Any]] = True):
-                node_records = [node_mapping.convert_to_node_record(rec)['record'] for rec in table_records]
-                default_source_metadata = {
-                    "id": f"merge_nodes_from_table_{os.path.basename(node_mapping.tableName)}_at_{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                    "sourceType": SourceType.STRUCTURED_TABLE.value,
-                    "transformType": TransformType.TABLE_MAPPING_TO_NODE.value,
-                    "loadType": LoadType.MERGE_NODES.value,
-                    "name": os.path.basename(node_mapping.tableName),
-                    "description": node_mapping.tableDescription,
-                    "file": node_mapping.tableName,
-                }
+            """
+               Merges data from the provided table records into knowledge graph nodes based on the
+               specified node mapping and source metadata.
 
-                source_metadata = prepare_source_metadata(source_metadata, default_source_metadata)
+               Args:
+                   table_records (List[Dict]): The records of the table from CSV or other sources to
+                       be merged into the knowledge graph.
+                   node_mapping (NodeTableMapping): The mapping between the table and node schema
+                   source_metadata (Union[bool, Dict[str, Any]]): Metadata indicating the
+                       source information of the incoming data. If True, source metadata will
+                       be inferred; if False, no source metadata is used; or a dictionary
+                       can be passed to define custom metadata. Defaults to True.
+            """
+            node_records = [node_mapping.convert_to_node_record(rec)['record'] for rec in table_records]
+            default_source_metadata = {
+                "id": f"merge_nodes_from_table_{os.path.basename(node_mapping.tableName)}_at_{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                "sourceType": SourceType.STRUCTURED_TABLE.value,
+                "transformType": TransformType.TABLE_MAPPING_TO_NODE.value,
+                "loadType": LoadType.MERGE_NODES.value,
+                "name": os.path.basename(node_mapping.tableName),
+                "description": node_mapping.tableDescription,
+                "file": node_mapping.tableName,
+            }
 
-                self.merge_nodes(node_mapping.nodeLabel, node_records, source_metadata)
+            source_metadata = prepare_source_metadata(source_metadata, default_source_metadata)
+
+            self.merge_nodes(node_mapping.nodeLabel, node_records, source_metadata)
 
         def merge_relationships_from_table(self, table_records:List[Dict], rel_mapping:RelTableMapping, source_metadata: Union[bool, Dict[str, Any]] = True):
+            """
+            Merges data from the provided table records into knowledge graph relationships and start and end nodes based on the
+            specified relationship mapping and source metadata.
+
+            Args:
+               table_records (List[Dict]): The records of the table from CSV or other sources to
+                   be merged into the knowledge graph.
+               rel_mapping (NodeTableMapping): The mapping between the table and relationships and start/end node schemas
+               source_metadata (Union[bool, Dict[str, Any]]): Metadata indicating the
+                   source information of the incoming data. If True, default source metadata will
+                   be generated; if False, no source metadata is used; or a dictionary
+                   can be passed to define custom metadata. Defaults to True.
+
+            """
             rel_records = dict()
             node_records = dict()
             dicts_of_triple_records = [rel_mapping.convert_to_triple_records(rec) for rec in table_records]
@@ -516,6 +631,22 @@ class GraphRAG:
                                         source_metadata)
 
         def merge_node_csv(self, file_path: str, source_metadata: Union[bool, Dict[str, Any]] = True):
+            """
+            Maps a CSV file to nodes and merges into the knowledge graph.
+
+            This method reads a CSV file to retrieve table records and table preview data, determines the
+            node mapping for the table based on the file name and table preview using an LLM workflow, and finally merges the
+            table data into the knowledge graph using the node mapping. Optional
+            source metadata can be passed or it will be generated with default values.
+
+            Args:
+                file_path: str
+                    The path to the CSV file to be processed.
+               source_metadata (Union[bool, Dict[str, Any]]): Metadata indicating the
+                   source information of the incoming data. If True, default source metadata will
+                   be generated; if False, no source metadata is used; or a dictionary
+                   can be passed to define custom metadata. Defaults to True.
+            """
             table_records = read_csv(file_path)
             table_preview = read_csv_preview(file_path)
             node_mapping = self.get_table_node_mapping(os.path.basename(file_path), table_preview)
@@ -530,6 +661,22 @@ class GraphRAG:
             self.merge_node_table(table_records, node_mapping, source_metadata)
 
         def merge_relationships_csv(self, file_path: str, source_metadata: Union[bool, Dict[str, Any]] = True):
+            """
+             Maps a CSV file to relationships and their stat/end nodes and merges into the knowledge graph.
+
+            This method reads a CSV file to retrieve table records and table preview data, determines the
+            relationships mapping for the table based on the file name and table preview using an LLM workflow, and finally merges the
+            table data into the knowledge graph using the relationship mapping. Optional
+            source metadata can be passed or it will be generated with default values.
+
+            Args:
+                file_path: str
+                    The path to the CSV file to be processed.
+               source_metadata (Union[bool, Dict[str, Any]]): Metadata indicating the
+                   source information of the incoming data. If True, default source metadata will
+                   be generated; if False, no source metadata is used; or a dictionary
+                   can be passed to define custom metadata. Defaults to True.
+            """
             table_records = read_csv(file_path)
             table_preview = read_csv_preview(file_path)
             rel_mapping = self.get_table_relationships_mapping(os.path.basename(file_path), table_preview)
@@ -544,6 +691,20 @@ class GraphRAG:
             self.merge_relationships_from_table(table_records, rel_mapping, source_metadata)
 
         def merge_csv(self, file_path: str, source_metadata: Union[bool, Dict[str, Any]] = True):
+            """
+            Merges data from a CSV file into the knowledge graph by determining its table type and invoking the appropriate merge method.
+
+            The method identifies the type of data within the CSV file (either a single node or relationships) and
+            creates a mapping to convert it to the graph schema using an LLM-powered workflow.
+
+            Args:
+                file_path: str
+                    The path to the CSV file to be processed.
+               source_metadata (Union[bool, Dict[str, Any]]): Metadata indicating the
+                   source information of the incoming data. If True, default source metadata will
+                   be generated; if False, no source metadata is used; or a dictionary
+                   can be passed to define custom metadata. Defaults to True.
+            """
             table_preview = read_csv_preview(file_path)
             table_type = self.get_table_mapping_type(os.path.basename(file_path), table_preview)
             print(f"[Data] Merging {os.path.basename(file_path)} as {table_type}.")
@@ -556,15 +717,23 @@ class GraphRAG:
 
         def merge_csvs(self, file_paths: List[str], source_metadata: Union[bool, Dict[str, Any]] = True):
             """
-            Merges data from CSV files into the knowledge graph.
+            Merges data from CSV files into the knowledge graph by determining table types and invoking appropriate merge methods.
+
+            The method identifies the types of data within each CSV file (either a single node or relationships) and
+            creates mappings to convert them to the graph schema using an LLM-powered workflow.
 
             Args:
-                file_paths (List[str]): The file paths to csvs
+                file_paths: List[str]
+                    The paths to the CSV files to be processed.
+               source_metadata (Union[bool, Dict[str, Any]]): Metadata indicating the
+                   source information of the incoming data. If True, default source metadata will
+                   be generated; if False, no source metadata is used; or a dictionary
+                   can be passed to define custom metadata. Defaults to True.
             """
             for file_path in file_paths:
                 self.merge_csv(file_path, source_metadata)
 
-        async def extract_nodes_from_text(self, file_path, text, sub_schema:SubSchema=None) -> GraphData:
+        async def _extract_nodes_from_text(self, file_path, text, sub_schema:SubSchema=None) -> GraphData:
             graph_schema:GraphSchema = self.graphrag.schema.schema.subset(sub_schema) if sub_schema else self.graphrag.schema.schema
 
             prompt = TEXT_NODE_EXTRACTION_TEMPLATE.invoke({'fileName': os.path.basename(file_path),
@@ -576,7 +745,7 @@ class GraphRAG:
             graph_data = extracted_nodes.to_subgraph().convert_to_graph_data(self.graphrag.schema.schema)
             return graph_data
 
-        async def extract_nodes_and_rels_from_text(self, file_path, text, sub_schema:SubSchema=None) -> GraphData:
+        async def _extract_nodes_and_rels_from_text(self, file_path, text, sub_schema:SubSchema=None) -> GraphData:
             graph_schema: GraphSchema = self.graphrag.schema.schema.subset(sub_schema) if sub_schema else self.graphrag.schema.schema
             prompt = TEXT_EXTRACTION_TEMPLATE.invoke({'fileName': os.path.basename(file_path),
                                                       'text': text,
@@ -587,24 +756,24 @@ class GraphRAG:
             graph_data:GraphData = extracted_subgraph.convert_to_graph_data(self.graphrag.schema.schema)
             return graph_data
 
-        async def extract_from_text_async(self, text, semaphore, source_name: str, nodes_only=True, sub_schema:SubSchema=None) -> GraphData:
+        async def _extract_from_text_async(self, text, semaphore, source_name: str, nodes_only=True, sub_schema:SubSchema=None) -> GraphData:
             async with semaphore:
-                graph_data = await self.extract_nodes_from_text(source_name, text, sub_schema) if nodes_only \
-                    else await self.extract_nodes_and_rels_from_text(source_name, text, sub_schema)
+                graph_data = await self._extract_nodes_from_text(source_name, text, sub_schema) if nodes_only \
+                    else await self._extract_nodes_and_rels_from_text(source_name, text, sub_schema)
                 return graph_data
 
-        async def extract_from_texts_async(self,
-                                           texts: List[str],
-                                           source_name: str,
-                                           nodes_only=True,
-                                           max_workers=10,
-                                           sub_schema:SubSchema=None) -> GraphData:
-            self._validate_llms()
+        async def _extract_from_texts_async(self,
+                                            texts: List[str],
+                                            source_name: str,
+                                            nodes_only=True,
+                                            max_workers=10,
+                                            sub_schema:SubSchema=None) -> GraphData:
+            self._validate_llm()
             # Create a semaphore with the desired number of workers
             semaphore = asyncio.Semaphore(max_workers)
 
             # Create tasks with the semaphore
-            tasks = [self.extract_from_text_async(text, semaphore, source_name, nodes_only, sub_schema) for text in texts]
+            tasks = [self._extract_from_text_async(text, semaphore, source_name, nodes_only, sub_schema) for text in texts]
 
             # Explicitly update progress using `tqdm` as tasks complete
             results:GraphData = GraphData(nodeDatas=[], relationshipDatas=[])
@@ -624,7 +793,38 @@ class GraphRAG:
                                nodes_only=True,
                                max_workers=10,
                                sub_schema:SubSchema=None) -> GraphData:
-            return run_async_function(self.extract_from_texts_async,
+            """
+            Performs entity extraction on a list of text chunks according to the graph schema and outputs the result
+            in the form of a GraphData object which contains structured node/relationship records and schem references.
+
+            This method asynchronously processes a list of input texts and extracts relevant
+            data to a knowledge graph structure using an LLM-powered workflow.
+            Extraction is driven by the GraphSchema.
+
+            Args:
+                texts: List[str]
+                    A list of input strings (text chunks) from which data will be extracted and structured
+                    into a graph representation.
+                source_name: str
+                    A source identifier or label associated with the input texts. Used for
+                    additional context in LLM workflow.
+                nodes_only: bool
+                    A flag indicating whether to extract only nodes (True) or both nodes and
+                    relationships (False) during entity extraction. Defaults to True.
+                max_workers: int
+                    The maximum number of concurrent workers to use during entity extraction. This
+                    parameter affects the level of parallelism when handling input texts.
+                    Defaults to 10.
+                sub_schema: SubSchema
+                    A sub-schema specifying filtering criteria (nodes, patterns, relationships)
+                    for the target graphSchema as well as additional description for guiding LLM entity extraction.
+                    If not provided, the whole graphSchema is considered. Default is None.
+
+            Returns:
+                GraphData
+                    A graph representation of the extracted data.
+            """
+            return run_async_function(self._extract_from_texts_async,
                                       texts,
                                       source_name,
                                       nodes_only,
@@ -638,6 +838,37 @@ class GraphRAG:
                         max_workers=10,
                         source_metadata: Union[bool, Dict[str, Any]] = True,
                         sub_schema:SubSchema=None):
+            """
+            Performs entity extraction on a list of text chunks according to the graph schema, produces
+            subgraphs (nodes and relationships), and merges them into the knowledge graph.
+
+            This method asynchronously processes a list of input texts, extracts relevant
+            data to a knowledge graph structure using an LLM-powered workflow.
+            Extraction is driven by the GraphSchema.
+
+            Args:
+                texts: List[str]
+                    A list of input strings (text chunks) from which data will be extracted and structured
+                    into a graph representation.
+                source_name: str
+                    A source identifier or label associated with the input texts. Used for
+                    additional context in LLM workflow.
+                nodes_only: bool
+                    A flag indicating whether to extract only nodes (True) or both nodes and
+                    relationships (False) during entity extraction. Defaults to True.
+                max_workers: int
+                    The maximum number of concurrent workers to use during entity extraction. This
+                    parameter affects the level of parallelism when handling input texts.
+                    Defaults to 10.
+                source_metadata (Union[bool, Dict[str, Any]]): Metadata indicating the
+                   source information of the incoming data. If True, default source metadata will
+                   be generated; if False, no source metadata is used; or a dictionary
+                   can be passed to define custom metadata. Defaults to True.
+                sub_schema: SubSchema
+                    A sub-schema specifying filtering criteria (nodes, patterns, relationships)
+                    for the target graphSchema as well as additional description for guiding LLM entity extraction.
+                    If not provided, the whole graphSchema is considered. Default is None.
+            """
             graph_data:GraphData = self.extract_from_texts(texts, source_name, nodes_only, max_workers, sub_schema)
 
             default_source_metadata = {
@@ -661,31 +892,37 @@ class GraphRAG:
         def merge_pdf(self, file_path: str, chunk_strategy="BY_PAGE", chunk_size=10, nodes_only=True, max_workers=10,
                       source_metadata: Union[bool, Dict[str, Any]] = True, sub_schema:SubSchema=None):
             """
-            Merges data from a PDF file into a graph database by extracting structured graph-based entities
-            through the use of a Large Language Model (LLM) textual extractor. The method processes the PDF
-            in chunks, validates necessary components, and performs merging actions for nodes and relationships.
 
-            Arguments:
+            Merges data from a pdf file into the knowledge graph
+
+            This method
+            1. Splits a pdf file into text chunks
+            2. Performs parallelized/asynchronous entity extraction on text chunks according to the graph schema using an LLM-powered workflow
+            3. Merges extracted subgraphs (nodes and relationships) into knowledge graph
+
+            Args:
                 file_path (str): The file path of the PDF document that needs to be processed.
-                chunk_strategy (str, optional): The strategy for splitting text into chunks. Default is "BY_PAGE".
+                chunk_strategy (str, optional): The strategy for splitting text into chunks.
+                    Currently only supports "BY_PAGE" which splits by pdf page. If you need custom chunking strategies,
+                    pre-process your PDF into text chunks and use the `merge_texts` method with your resulting
+                    chunks instead. Default is "BY_PAGE".
                 chunk_size (int, optional): The size of the chunks for text splitting based on the strategy.
-                    Default is 20.
-                nodes_only (bool, optional): If True, processes only nodes and not relationships.
-                    Default is True.
-                max_workers (int, optional): The maximum number of workers for parallel processing.
                     Default is 10.
-                source_metadata : Union[bool, Dict[str, Any]], optional
-                    Metadata for the source file being merged.
-                        - If set to `True`, default source metadata is prepared and added to a __Source__ node in the graph.
-                        A __source_id property is added and/or appended to each node and relationship which maps to the id property of __Source__ node
-                        - If `False`, no source metadata is added to the graph.
-                        - If a custom dictionary is provided, source metadata is added as in the case of `True` and the dictionary properties override the default ones.
-                    Default is True.
-
-                sub_schema : SubSchema, optional
-                    A sub-schema specifying filtering criteria (nodes, patterns, relationships, etc.) for the target graphSchema. If not provided, the whole graphSchema
-                    is considered. Default is None.
-
+                nodes_only: bool
+                    A flag indicating whether to extract only nodes (True) or both nodes and
+                    relationships (False) during entity extraction. Defaults to True.
+                max_workers: int
+                    The maximum number of concurrent workers to use during entity extraction. This
+                    parameter affects the level of parallelism when handling input texts.
+                    Defaults to 10.
+                source_metadata (Union[bool, Dict[str, Any]]): Metadata indicating the
+                   source information of the incoming data. If True, default source metadata will
+                   be generated; if False, no source metadata is used; or a dictionary
+                   can be passed to define custom metadata. Defaults to True.
+                sub_schema: SubSchema
+                    A sub-schema specifying filtering criteria (nodes, patterns, relationships)
+                    for the target graphSchema as well as additional description for guiding LLM entity extraction.
+                    If not provided, the whole graphSchema is considered. Default is None.
 
             Raises:
                 ValueError: If the file_path is invalid, empty, or not a supported PDF file.
@@ -709,12 +946,11 @@ class GraphRAG:
             the database in a batch-wise manner. This method ensures
             efficient cleanup and resets the database to a blank state.
 
-            Parameters
-            ----------
-            delete_chunk_size : int, optional
-                Number of rows to process per transaction during deletion, by default 10,000.
-            skip_confirmation : bool, optional
-                If True, skips the confirmation prompt, by default False.
+            Args:
+                delete_chunk_size : int, optional
+                    Number of rows to process per transaction during deletion, by default 10,000.
+                skip_confirmation : bool, optional
+                    If True, skips the confirmation prompt, by default False.
             """
             if not skip_confirmation:
                 confirmation = input("[WARNING] This action will permanently delete all graph data and indexes in the "
@@ -815,23 +1051,24 @@ class GraphRAG:
         operations to the respective helper functions based on the specified search
         type.
 
-    Parameters:
-        search_config (Dict[str, str]): A dictionary specifying the configuration
-            for the search operation. It must contain the following keys:
-                - "search_type": Determines the type of search to perform, either
-                  "FULLTEXT" for full-text search or "SEMANTIC" for embedding-based
-                  search.
-                - "node_label": The label of the node to search within the graph.
-                - "search_prop": The property of the node to search against.
+        Parameters:
+            search_config (Dict[str, str]): A dictionary specifying the configuration
+                for the search operation. It must contain the following keys:
+                    - "search_type": Determines the type of search to perform, either
+                      "FULLTEXT" for full-text search or "SEMANTIC" for embedding-based
+                      search.
+                    - "node_label": The label of the node to search within the graph.
+                    - "search_prop": The property of the node to search against.
 
-        search_query (str): The query string used to perform the search
+            search_query (str): The query string used to perform the search
 
-        top_k (int): The maximum number of results to return. Defaults to 10.
+            top_k (int): The maximum number of results to return. Defaults to 10.
 
-    Returns:
-        The results of the performed search operation, as provided by the
-        corresponding helper function.
-    """
+        Returns:
+            The results of the performed search operation, as provided by the
+            corresponding helper function.
+
+        """
 
         if search_config['search_type'] == "FULLTEXT":
             return self.node_fulltext_search(search_query, search_config['node_label'], search_config['search_prop'], top_k)
@@ -910,7 +1147,10 @@ class GraphRAG:
 
     def agent(self, question: str):
         """
-        Answers a question using GraphRAG
+        Answers a question using GraphRAG.
+
+        This method relies on an internal prebuilt LangGraph ReAct agent which it creates if it doesn't already exist.
+        This agent leverages the graph schema to customize tools prompts.
 
         Args:
             question (str): The question to be executed.

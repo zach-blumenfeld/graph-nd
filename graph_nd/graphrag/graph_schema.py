@@ -211,6 +211,9 @@ class GraphSchema(Element):
         """
         Custom model_dump for GraphSchema that ensures nested elements are
         serialized using their own query_model_dump logic.
+
+        Relationships have custom dict method to serialize query patterns in the format:
+        (:startNodeLabel)-[:TYPE]->(:endNodeLabel). This makes it easier for LLMs and humans to interpret.
         """
         base_dict = super().model_dump(**kwargs)
 
@@ -224,6 +227,16 @@ class GraphSchema(Element):
         return json.dumps({"nodes": [node.model_dump(**kwargs) for node in self.nodes]}, indent=4)
 
     def prompt_str(self, **kwargs) -> str:
+        """
+        Generates a JSON-formatted string based on the query model dump.
+
+        Parameters:
+            **kwargs: Arbitrary keyword arguments used to customize the query model
+            dump. These arguments are passed to the `query_model_dump` method.
+
+        Returns:
+            str: A JSON-formatted string representation of the query model dump.
+        """
         return json.dumps(self.query_model_dump(**kwargs), indent=4)
 
     def query_model_to_yaml(self, **kwargs) -> str:

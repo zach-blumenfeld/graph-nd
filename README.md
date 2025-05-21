@@ -1,7 +1,7 @@
 # **Graph-ND**
 *Knowledge in __Graphs, Not Documents__*
 
-Graph-ND is a Python project for building powerful end-to-end [**GraphRAG**](https://neo4j.com/blog/genai/what-is-graphrag) systems with a simple, intuitive API. 
+Graph-nd is a Python project for building powerful end-to-end agentic [**GraphRAG**](https://neo4j.com/blog/genai/what-is-graphrag) systems with a simple, intuitive API. 
 
 
 __Example Usage__: From data sources to agentic GraphRAG in 3 steps:
@@ -64,13 +64,12 @@ The sequence of components that depend on silicon wafers is as follows:
 """
 ```
 ## Why Graph-ND?
-:movie_camera: [recorded walkthrough](https://drive.google.com/file/d/1Bl-SH3hnH5SBvmouKrglUKsxF0kpeBM0/view?usp=sharing)
 1. Designed to get you started with GraphRAG easily in 5 minutes. No prior graph expertise required!
 2. Built with intent to extend to production - not just a demo tool. While geared for simplicity, users can customize schemas, data loading, indexes, etc.  for precision & control.
-3. Prioritizes support for mixed data. Seamlessly integrates both structured (CSV, tables) and unstructured data (PDFs, text) into your knowledge graph
+3. Prioritizes support for mixed data. Seamlessly integrates both structured (CSV, tables) and unstructured data (PDFs, text) into your knowledge graph.
 
-## **How It Works in More Detail**
-Here’s a step-by-step example to using Graph-ND:
+## How It Works in More Detail
+Here’s a step-by-step example to using graph-nd:
 1. **Setup**: Instantiate and configure the GraphRAG class. GraphRAG uses Langchain under-the-hood so you can use any model(s) with Langchain support. 
 ``` python
 from graph_nd import GraphRAG
@@ -105,25 +104,102 @@ graphrag.agent("Can you describe what GPUs do?")
 graphrag.agent("What components have the most inputs?")
 ```
 
-## **Installing and Running Graph-ND**
-(Currently experimental. Packaging as a library is underway.)
-1. Clone the repository.
-2. Install the dependencies:
-``` bash
-   pip install -r requirements.txt
+## Installing and Running Graph-ND
+
+### Installation
+
+```bash
+pip install graph-nd
 ```
-3. Start a free Neo4j (Aura) instance at [console.neo4j.io/](https://console.neo4j.io/)
-4. Configure your `.env` file with the following:
-``` 
+
+Alternatively, for development you can clone and install locally:
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/zach-blumenfeld/graph-nd.git
+   cd graph-nd
+   ```
+
+2. Install with Poetry:
+   ```bash
+   # Install Poetry if you haven't already
+   # curl -sSL https://install.python-poetry.org | python3 -
+   
+   # Install dependencies
+   poetry install
+   
+   # Activate the virtual environment
+   poetry shell
+   ```
+
+### Configuration
+
+1. Start a free Neo4j (Aura) instance at [console.neo4j.io/](https://console.neo4j.io/)
+
+2. Configure your `.env` file with the following:
+   ```
    NEO4J_URI=<your_neo4j_uri>
    NEO4J_USERNAME=<your_neo4j_username>
    NEO4J_PASSWORD=<your_neo4j_password>
    
-   OPEN_AI_API_KEY = ... # or subistute your preffered LLM/Embedding provider(s)
+   OPEN_AI_API_KEY = ... # or substitute your preferred LLM/Embedding provider(s)
+   ```
+
+## Getting Started
+
+Explore our example notebooks to learn how to use graph-nd:
+
+- [quickstart-example.ipynb](examples/components/quickstart-example.ipynb) - A great 101 for getting started quickly
+- [retail-example](examples/retail/retail-example.ipynb) - A more advanced example showing how to add control and precision to graphrag workflows
+- [companies-example](examples/companies/companies.ipynb) - GraphRAG on pre-existing graphs created externally of graph-nd
+
+
+## Feedback & Contributions
+We welcome your feedback and contributions to make GraphRAG better and more accessible for everyone!
+
+If you'd like to contribute:
+
+1. Fork the repository and create a new branch for your feature or fix
+2. Squash your commits for a clean history
+3. Ensure all unit tests pass (running functional and integration tests is also highly recommended)
+4. Submit a pull request with a clear description of your changes
+
+For bugs, feature requests, or questions, please open an issue on our GitHub repository.
+
+
+## Running Tests
+This project uses pytest for testing. Tests are organized in three categories:
+- Unit tests: Basic component testing
+- Integration tests: Testing interaction between components - you will need an Aura free instance and OpenAI key configured in a `.env` file.
+- Functional tests: More comprehensive End-to-end testing of features - you will need an Aura free instance and OpenAI key configured in a `.env` file.
+
+### Running Tests with Poetry
+
+```bash
+# Run all tests
+poetry run pytest tests -v
+
+# Run only unit tests
+poetry run pytest tests/unit -v
+
+# Run only integration tests
+poetry run pytest tests/integration -v
+
+# Run only functional tests
+poetry run pytest tests/functional -v
+
+# Run a specific test file
+poetry run pytest tests/unit/test_specific_file.py -v
+
+# Run a specific test function
+poetry run pytest tests/unit/test_file.py::test_function -v
+
+# Run tests with specific pattern matching
+poetry run pytest tests/unit -k "pattern" -v
 ```
-Run provided examples or scripts in the `examples/` directory. [quickstart-example.ipynb](examples/components/quickstart-example.ipynb) is a great 101 for getting started quickly.  [retail-example](examples/retail/retail-example.ipynb) is a good second resources for understanding more options and how  to add more control and precision to graphrag workflows. 
 
-## **Feedback & Contributions**
-Feedback and ideas are welcome! Join the development conversation or raise issues for improvements. Let’s make GraphRAG accessible to everyone!
-
-
+Additional pytest options:
+- `-v`: Verbose output
+- `-k "pattern"`: Only run tests matching the pattern
+- `--tb=native`: Display full traceback
+- `-x`: Stop after first failure
