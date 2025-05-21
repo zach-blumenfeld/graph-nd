@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.abspath('../..'))  # Path to your code
 project = 'graph-nd'
 copyright = '2025, Zach Blumenfeld'
 author = 'Zach Blumenfeld, Alex Gilmore'
-release = '0.0.1a'
+release = '0.0.2'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -36,6 +36,13 @@ exclude_patterns = []
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = 'sphinx_rtd_theme'  # Use Read the Docs theme
+html_theme_options = {
+    'github_user': 'zach-blumenfeld',
+    'github_repo': 'graph-nd',
+    'github_button': True,
+    'github_banner': True,
+    'github_type': 'star',
+}
 html_static_path = ['_static']
 
 # -- Extension configuration -------------------------------------------------

@@ -1,8 +1,9 @@
 # **Graph-ND**
 *Knowledge in __Graphs, Not Documents__*
 
-Graph-nd is a Python project for building powerful end-to-end agentic [**GraphRAG**](https://neo4j.com/blog/genai/what-is-graphrag) systems with a simple, intuitive API. 
+[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://graph-nd.readthedocs.io/)
 
+A Python package for building powerful end-to-end agentic [**GraphRAG**](https://neo4j.com/blog/genai/what-is-graphrag) systems with a simple, intuitive API. 
 
 __Example Usage__: From data sources to agentic GraphRAG in 3 steps:
 

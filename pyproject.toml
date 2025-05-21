@@ -1,11 +1,13 @@
 [tool.poetry]
 name = "graph_nd"
-version = "0.0.1a"
+version = "0.0.2"
 description = "A Python package for building powerful end-to-end agentic GraphRAG systems with a simple, intuitive API"
 authors = ["Zach Blumenfeld <zblumenf@gmail.com>"]
 readme = "README.md"
 repository = "https://github.com/zach-blumenfeld/graph-nd"
 packages = [{include = "graph_nd"}]
+documentation = "https://graph-nd.readthedocs.io/"
+
 
 [tool.poetry.dependencies]
 python = ">=3.10"
