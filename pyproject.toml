@@ -21,7 +21,6 @@ PyYAML = "*"
 pydantic = "*"
 nest-asyncio = "*"
 
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
@@ -31,6 +30,13 @@ pytest = "*"
 nbconvert = "*"
 nbformat = "*"
 jupyter = "*"
+
+[tool.poetry.group.dev.dependencies]
+sphinx = "<=7.2.6"
+sphinx-rtd-theme = "^3.0.2"
+sphinx-autodoc-typehints = "<=3.0.1"
+sphinx-copybutton = "^0.5.2"
+myst-parser = "^4.0.1"
 
 [build-system]
 requires = ["poetry-core"]
