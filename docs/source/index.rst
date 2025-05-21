@@ -21,7 +21,7 @@ A Python package for building powerful end-to-end agentic GraphRAG systems with 
    api/index
    contributing
 
-Features
+Features:
 --------
 * **Knowledge Graph Creation & Data Integration:** Easily map mixed data sources to knowledge graphs (KGs):
  - tables from CSVs, RDBMS, and Data Warehouses
@@ -36,12 +36,4 @@ Features
  - Automatically builds Langgraph ReAct agents with tools and system prompts customized to your graph schema and use case
  - Enables agent customization through the addition of other user defined tools and prompt context, either locally or via MCP
  - **Coming Soon** - Agent factories for creating agents in multiple other frameworks and SDKs
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
 
