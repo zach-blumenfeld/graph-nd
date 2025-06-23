@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.abspath('../..'))  # Path to your code
 project = 'graph-nd'
 copyright = '2025, Zach Blumenfeld'
 author = 'Zach Blumenfeld, Alex Gilmore'
-release = '0.0.2'
+release = '0.0.3'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

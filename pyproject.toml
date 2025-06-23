@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "graph_nd"
-version = "0.0.2"
+version = "0.0.3"
 description = "A Python package for building powerful end-to-end agentic GraphRAG systems with a simple, intuitive API"
 authors = ["Zach Blumenfeld <zblumenf@gmail.com>"]
 readme = "README.md"
