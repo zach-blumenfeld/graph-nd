@@ -1,7 +1,7 @@
 import json
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, field_validator, model_validator, ValidationInfo
+from pydantic import BaseModel, Field, field_validator, model_validator, ValidationInfo, validator
 from typing import Optional, Dict, Any, Union, List, Tuple, Self
 import yaml  # Import PyYAML for YAML serialization
 
@@ -71,12 +71,38 @@ class PropertySchema(Element):
     """
     name: str = Field(description="name of the property")
     type: str = Field(description="data type of the property, STRING, INTEGER, etc.")
+    allowed_values: Optional[List[Union[str, int]]] = Field(
+        default=None,
+        description="Allowed values for this property (type should match the property's type). Use like an Enum."
+    )
 
     @field_validator("type")
     def validate_type(cls, v):
         if v.upper() not in NEO4J_PROPERTY_TYPES:
             raise ValueError(f"Invalid property `type`. Must be one of: {NEO4J_PROPERTY_TYPES}")
         return v.upper()
+
+    @model_validator(mode='after')
+    def validate_allowed_values(self):
+
+        allowed_values = self.allowed_values
+        if allowed_values is None:
+            return self
+
+        prop_type = self.type
+        prop_name = self.name
+
+        if prop_type == 'STRING':
+            if not all(isinstance(val, str) for val in allowed_values):
+                raise ValueError(f"Property '{prop_name}': All allowed values must be strings for STRING properties")
+        elif prop_type == 'INTEGER':
+            if not all(isinstance(val, int) for val in allowed_values):
+                raise ValueError(f"Property '{prop_name}': All allowed values must be integers for INTEGER properties")
+        else:
+            raise ValueError(
+                f"Property '{prop_name}': Allowed values are only supported for STRING and INTEGER properties, not '{prop_type}'")
+
+        return self
 
 class SearchFieldSchema(Element):
     """

@@ -99,3 +99,110 @@ def test_graph_schema_validation_invalid_end_node_not_in_relationship_pattern(no
     with pytest.raises(ValueError) as e:
         GraphSchema(nodes=[node_a, node_b], relationships=[RelationshipSchema(type="BC", queryPatterns=[query_pattern_bc])])
     assert "Relationship BC has `queryPattern` with `endNode` label: C not found in `nodes` field." in str(e.value)
+
+def test_property_schema_allowed_values_string_valid():
+    """Test that a STRING property with valid allowed_values passes validation"""
+    prop = PropertySchema(
+        name="status",
+        type="STRING",
+        description="Status of the entity",
+        allowed_values=["pending", "active", "completed"]
+    )
+    # No exception should be raised
+    assert prop.allowed_values == ["pending", "active", "completed"]
+
+
+def test_property_schema_allowed_values_string_invalid():
+    """Test that a STRING property with invalid allowed_values fails validation"""
+    from pydantic import ValidationError
+    import pytest
+
+    with pytest.raises(ValidationError) as exc_info:
+        PropertySchema(
+            name="status",
+            type="STRING",
+            description="Status of the entity",
+            allowed_values=["pending", 123, "completed"]  # 123 is not a string
+        )
+
+    # Check that the error message includes the property name
+    assert "Property 'status'" in str(exc_info.value)
+    assert "must be strings" in str(exc_info.value)
+
+
+def test_property_schema_allowed_values_integer_valid():
+    """Test that an INTEGER property with valid allowed_values passes validation"""
+    prop = PropertySchema(
+        name="priority",
+        type="INTEGER",
+        description="Priority level",
+        allowed_values=[1, 2, 3, 5, 8]
+    )
+    # No exception should be raised
+    assert prop.allowed_values == [1, 2, 3, 5, 8]
+
+
+def test_property_schema_allowed_values_integer_invalid():
+    """Test that an INTEGER property with invalid allowed_values fails validation"""
+    from pydantic import ValidationError
+    import pytest
+
+    with pytest.raises(ValidationError) as exc_info:
+        PropertySchema(
+            name="priority",
+            type="INTEGER",
+            description="Priority level",
+            allowed_values=[1, "medium", 3]  # "medium" is not an integer
+        )
+
+    # Check that the error message includes the property name
+    assert "Property 'priority'" in str(exc_info.value)
+    assert "must be integers" in str(exc_info.value)
+
+
+def test_property_schema_allowed_values_unsupported_type():
+    """Test that allowed_values is rejected for unsupported property types"""
+    from pydantic import ValidationError
+    import pytest
+
+    with pytest.raises(ValidationError) as exc_info:
+        PropertySchema(
+            name="is_active",
+            type="BOOLEAN",
+            description="Whether the entity is active",
+            allowed_values=[True, False]
+        )
+
+    # Check that the error message is clear about supported types
+    assert "Property 'is_active'" in str(exc_info.value)
+    assert "only supported for STRING and INTEGER" in str(exc_info.value)
+
+
+def test_property_schema_allowed_values_none():
+    """Test that allowed_values can be None for any property type"""
+    # Test with STRING
+    prop_string = PropertySchema(
+        name="name",
+        type="STRING",
+        description="Name of the entity",
+        #allowed_values=None
+    )
+    assert prop_string.allowed_values is None
+
+    # Test with INTEGER
+    prop_int = PropertySchema(
+        name="count",
+        type="INTEGER",
+        description="Count value",
+        #allowed_values=None
+    )
+    assert prop_int.allowed_values is None
+
+    # Test with BOOLEAN
+    prop_bool = PropertySchema(
+        name="is_active",
+        type="BOOLEAN",
+        description="Activity status",
+        #allowed_values=None
+    )
+    assert prop_bool.allowed_values is None
